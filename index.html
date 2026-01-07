@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>2pack APPLICATION</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+      :root {
+          --bg-color: #000;
+          --text-primary: #ffffff;
+          --text-secondary: rgba(235, 235, 245, 0.6);
+          --glass-panel-bg: rgba(35, 35, 35, 0.5);
+          --control-bg: rgba(0, 0, 0, 0.2);
+          --button-secondary-bg: rgba(120, 120, 128, 0.3);
+          --aurora-1: #5b21b6;
+          --aurora-2: #0a84ff;
+          --aurora-3: #be185d;
+          --border-color: rgba(255, 255, 255, 0.05);
+          --border-color-strong: rgba(255, 255, 255, 0.5);
+          --border-color-medium: rgba(255, 255, 255, 0.1);
+          --ios-blue: #0a84ff;
+          --ios-green: #30d158;
+          --radius-l: 22px;
+          --radius-m: 16px;
+          --radius-pill: 999px;
+      }
+
+      body {
+          font-family: 'Inter', sans-serif;
+          color: var(--text-primary);
+          background-color: var(--bg-color);
+          margin: 0;
+          padding: 0;
+          overflow: hidden; 
+      }
+
+      /* Aurora Background Animation */
+      .aurora-shape {
+          position: absolute;
+          filter: blur(100px);
+          opacity: 0.6;
+          border-radius: 50%;
+          transition: background-color 0.5s ease-out;
+          z-index: -1;
+      }
+
+      @keyframes move {
+          from { transform: translate(0, 0) rotate(0deg); }
+          to { transform: translate(100px, 50px) rotate(30deg); }
+      }
+
+      .shape-1 {
+          width: 600px; height: 600px; background: var(--aurora-1);
+          top: -20%; left: -10%; animation: move 20s infinite alternate;
+      }
+      .shape-2 {
+          width: 500px; height: 500px; background: var(--aurora-2);
+          bottom: -20%; right: -10%; animation: move 25s infinite alternate;
+      }
+      .shape-3 {
+          width: 400px; height: 400px; background: var(--aurora-3);
+          bottom: 30%; right: 30%; animation: move 15s infinite alternate;
+      }
+
+      /* Glass Panel Border Effect */
+      .glass-panel-border {
+          position: relative;
+          background: var(--glass-panel-bg);
+          backdrop-filter: blur(60px) saturate(180%);
+          border-radius: var(--radius-l);
+          box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.15);
+      }
+
+      .glass-panel-border::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          border-radius: inherit;
+          padding: 1px;
+          background: conic-gradient(from 180deg at 50% 50%, var(--border-color) 0deg, var(--border-color-strong) 55deg, var(--border-color-medium) 120deg, var(--border-color) 180deg, var(--border-color-strong) 235deg, var(--border-color-medium) 300deg, var(--border-color) 360deg);
+          -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+          -webkit-mask-composite: xor;
+          mask-composite: exclude;
+          pointer-events: none;
+      }
+
+      /* Scrollbar */
+      ::-webkit-scrollbar { width: 8px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb {
+          background-color: var(--button-secondary-bg);
+          border-radius: 10px;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
+    "recharts": "https://esm.sh/recharts@^3.6.0",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
