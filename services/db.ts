@@ -51,7 +51,7 @@ export const db = {
       }
 
       const payload = {
-        sku: product.sku,it
+        sku: product.sku,
         title: product.title,
         barcode: product.barcode,
         unit_weight_kg: product.unit_weight_kg,
