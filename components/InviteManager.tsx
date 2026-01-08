@@ -1,8 +1,11 @@
+'use client';
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { GlassPanel } from './GlassPanel';
 import { db } from '../services/db';
 import { UserInvite } from '../types';
 import { MailPlus, User, X } from 'lucide-react';
+import { inviteUser } from '../app/actions/invite'; // Updated import
 
 export const InviteManager: React.FC = () => {
   const [invites, setInvites] = useState<UserInvite[]>([]);
@@ -31,7 +34,10 @@ export const InviteManager: React.FC = () => {
     setError(null);
 
     try {
-      await db.invites.create(email);
+      const result = await inviteUser(email); // Use the server action
+      if (result.error) {
+        throw new Error(result.error);
+      }
       setEmail('');
       await fetchInvites(); // Refresh the list
     } catch (error: any) {

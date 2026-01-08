@@ -72,6 +72,7 @@ body {
   border-radius: inherit;
   padding: 1px;
   background: conic-gradient(from 180deg at 50% 50%, var(--border-color) 0deg, var(--border-color-strong) 55deg, var(--border-color-medium) 120deg, var(--border-color) 180deg, var(--border-color-strong) 235deg, var(--border-color-medium) 300deg, var(--border-color) 360deg);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   mask-composite: exclude;
   pointer-events: none;

@@ -203,28 +203,6 @@ export const db = {
             .select('*')
             .eq('organization_id', profile.organization_id);
     },
-    create: async (email: string): Promise<{ error: any }> => {
-        const { data: { user } } = await supabase.auth.getUser();
-         if (!user) return { error: 'Not authenticated' };
-
-        const { data: profile, error: profileError } = await supabase
-            .from('user_profiles')
-            .select('organization_id')
-            .eq('id', user.id)
-            .single();
-        
-        if (profileError || !profile) {
-            return { error: 'Could not find user organization.' };
-        }
-
-        const { error } = await supabase.from('user_invites').insert([{
-            email,
-            organization_id: profile.organization_id,
-            invited_by: user.id
-        }]);
-
-        return { error };
-    },
     delete: async (inviteId: string): Promise<{ error: any }> => {
         return await supabase.from('user_invites').delete().eq('id', inviteId);
     }
