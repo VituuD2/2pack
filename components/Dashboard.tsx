@@ -13,15 +13,17 @@ export const Dashboard: React.FC = () => {
   });
 
   useEffect(() => {
-    // In a real app, this would fetch from DB/API
-    // Since we cleared mock data, we just show 0s or local DB stats
-    const shipments = db.shipments.getAll();
-    setStats({
-      pending: shipments.filter(s => s.status !== 'completed').length,
-      completed: shipments.filter(s => s.status === 'completed').length,
-      itemsPerMin: 0,
-      avgTime: 0
-    });
+    const fetchStats = async () => {
+      const shipments = await db.shipments.getAll();
+      setStats({
+        pending: shipments.filter(s => s.status !== 'completed').length,
+        completed: shipments.filter(s => s.status === 'completed').length,
+        itemsPerMin: 0,
+        avgTime: 0
+      });
+    };
+    
+    fetchStats();
   }, []);
 
   return (

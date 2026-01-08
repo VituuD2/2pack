@@ -14,8 +14,12 @@ const App: React.FC = () => {
   const [activeShipmentId, setActiveShipmentId] = useState<string | null>(null);
 
   useEffect(() => {
-    // Load real data from local DB
-    setShipments(db.shipments.getAll());
+    // Load real data from DB asynchronously
+    const fetchShipments = async () => {
+      const data = await db.shipments.getAll();
+      setShipments(data);
+    };
+    fetchShipments();
   }, [currentView]); // Refresh when view changes
 
   const activeShipment = shipments.find(s => s.id === activeShipmentId);
@@ -25,15 +29,29 @@ const App: React.FC = () => {
     setCurrentView('picking');
   };
 
-  const handleUpdateShipment = (updated: Shipment) => {
+  const handleUpdateShipment = async (updated: Shipment) => {
+    // Optimistic update locally
     setShipments(prev => prev.map(s => s.id === updated.id ? updated : s));
+    
+    // Persist to DB
+    await db.shipments.update(updated);
   };
 
-  const handleCloseBox = (id: string) => {
-    setShipments(prev => prev.map(s => s.id === id ? { ...s, status: 'completed' } : s));
-    alert("Box Closed Successfully! Printing Label...");
-    setCurrentView('dashboard');
-    setActiveShipmentId(null);
+  const handleCloseBox = async (id: string) => {
+    const shipment = shipments.find(s => s.id === id);
+    if (shipment) {
+      const updated = { ...shipment, status: 'completed' as const };
+      
+      // Update local state
+      setShipments(prev => prev.map(s => s.id === id ? updated : s));
+      
+      // Update DB
+      await db.shipments.update(updated);
+      
+      alert("Box Closed Successfully! Printing Label...");
+      setCurrentView('dashboard');
+      setActiveShipmentId(null);
+    }
   };
 
   const NavButton: React.FC<{ view: ViewState; icon: React.ReactNode; label: string }> = ({ view, icon, label }) => (

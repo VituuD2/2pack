@@ -1,30 +1,62 @@
 import { Product, Shipment } from '../types';
-
-const STORAGE_KEYS = {
-  PRODUCTS: '2pack_products',
-  SHIPMENTS: '2pack_shipments'
-};
+import { supabase } from './supabaseClient';
 
 export const db = {
   products: {
-    getAll: (): Product[] => {
-      const data = localStorage.getItem(STORAGE_KEYS.PRODUCTS);
-      return data ? JSON.parse(data) : [];
+    getAll: async (): Promise<Product[]> => {
+      const { data, error } = await supabase
+        .from('products')
+        .select('*');
+      
+      if (error) {
+        console.error('Error fetching products:', error);
+        return [];
+      }
+      return data as Product[];
     },
-    add: (product: Product) => {
-      const products = db.products.getAll();
-      products.push(product);
-      localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
+    add: async (product: Product): Promise<void> => {
+      const { error } = await supabase
+        .from('products')
+        .insert([product]);
+      
+      if (error) {
+        console.error('Error adding product:', error);
+        alert('Failed to save product');
+      }
     },
-    delete: (id: string) => {
-      const products = db.products.getAll().filter(p => p.id !== id);
-      localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
+    delete: async (id: string): Promise<void> => {
+      const { error } = await supabase
+        .from('products')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        console.error('Error deleting product:', error);
+        alert('Failed to delete product');
+      }
     }
   },
   shipments: {
-    getAll: (): Shipment[] => {
-      const data = localStorage.getItem(STORAGE_KEYS.SHIPMENTS);
-      return data ? JSON.parse(data) : [];
+    getAll: async (): Promise<Shipment[]> => {
+      const { data, error } = await supabase
+        .from('shipments')
+        .select('*');
+
+      if (error) {
+        console.error('Error fetching shipments:', error);
+        return [];
+      }
+      return data as Shipment[];
+    },
+    update: async (shipment: Shipment): Promise<void> => {
+      const { error } = await supabase
+        .from('shipments')
+        .update(shipment)
+        .eq('id', shipment.id);
+        
+      if (error) {
+         console.error('Error updating shipment:', error);
+      }
     }
   }
 };

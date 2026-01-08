@@ -25,18 +25,19 @@ export const ProductManager: React.FC = () => {
     loadProducts();
   }, []);
 
-  const loadProducts = () => {
-    setProducts(db.products.getAll());
+  const loadProducts = async () => {
+    const data = await db.products.getAll();
+    setProducts(data);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm('Are you sure you want to delete this product?')) {
-      db.products.delete(id);
+      await db.products.delete(id);
       loadProducts();
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.title || !formData.sku || !formData.barcode) {
       alert('Please fill in required fields');
       return;
@@ -57,8 +58,8 @@ export const ProductManager: React.FC = () => {
       }
     };
 
-    db.products.add(newProduct);
-    loadProducts();
+    await db.products.add(newProduct);
+    await loadProducts();
     setIsModalOpen(false);
     resetForm();
   };
