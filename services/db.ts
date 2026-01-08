@@ -1,10 +1,9 @@
-import { Product, Shipment } from '../types';
+import { Product } from '../types';
 import { supabase, isSupabaseConfigured } from './supabaseClient';
-import { MOCK_PRODUCTS, MOCK_SHIPMENTS } from '../utils/mockData';
+import { MOCK_PRODUCTS } from '../utils/mockData';
 
 // In-memory storage for Demo Mode
 let localProducts = [...MOCK_PRODUCTS];
-let localShipments = JSON.parse(JSON.stringify(MOCK_SHIPMENTS)); // Deep copy for mutable state
 
 export const db = {
   products: {
@@ -34,7 +33,7 @@ export const db = {
         .eq('barcode', barcode)
         .single();
       
-      if (error && error.code !== 'PGRST116') {
+      if (error && error.code !== 'PGRST116') { // PGRST116 means no rows found, which is not an error here
          console.error('Error searching barcode:', error);
          throw error;
       }
@@ -50,7 +49,18 @@ export const db = {
         return newProduct as Product;
       }
 
-      const { data, error } = await supabase.from('products').insert([product]).select().single();
+      // Create a payload that matches the DB schema from your diagram
+      const payload = {
+        sku: product.sku,
+        name: product.name,
+        title: product.title,
+        barcode: product.barcode,
+        unit_weight_kg: product.unit_weight_kg,
+        image_url: product.image_url,
+        dimensions: product.dimensions
+      };
+
+      const { data, error } = await supabase.from('products').insert([payload]).select().single();
       if (error) {
         console.error('Error adding product:', error);
         throw error;
@@ -89,10 +99,20 @@ export const db = {
   },
 
   scans: {
-    log: async (productId: string, operatorId: string): Promise<void> => {
+    log: async (productId: string): Promise<void> => {
       if (!isSupabaseConfigured) {
-        console.log(`[Demo] Scan logged for product ${productId} by ${operatorId}`);
+        // In demo mode, we don't have a real user, so we'll use a placeholder.
+        console.log(`[Demo] Scan logged for product ${productId} by demo_user`);
         return;
+      }
+
+      // When integrated with auth, the operator_id should come from the logged-in user.
+      const { data: { user } } = await supabase.auth.getUser();
+      const operatorId = user?.id;
+
+      if (!operatorId) {
+          console.error("User not authenticated to log a scan.");
+          return;
       }
 
       const { error } = await supabase.from('scans').insert([{
@@ -103,38 +123,6 @@ export const db = {
       if (error) {
         console.error('Error logging scan:', error);
         throw error;
-      }
-    }
-  },
-
-  shipments: {
-    getAll: async (): Promise<Shipment[]> => {
-      if (!isSupabaseConfigured) {
-        console.log('[Demo] Getting all shipments.');
-        return new Promise(resolve => setTimeout(() => resolve([...localShipments]), 500));
-      }
-
-      const { data, error } = await supabase.from('shipments').select('*');
-      if (error) {
-        console.warn('Error fetching shipments:', error);
-        return [];
-      }
-      return data as Shipment[];
-    },
-    update: async (shipment: Partial<Shipment> & { id: string }): Promise<void> => {
-      if (!isSupabaseConfigured) {
-        console.log(`[Demo] Updating shipment ${shipment.id}`);
-        const index = localShipments.findIndex(s => s.id === shipment.id);
-        if (index !== -1) {
-            localShipments[index] = { ...localShipments[index], ...shipment };
-        }
-        return;
-      }
-
-      const { error } = await supabase.from('shipments').update(shipment).eq('id', shipment.id);
-      if (error) {
-         console.error('Error updating shipment:', error);
-         throw error;
       }
     }
   }
