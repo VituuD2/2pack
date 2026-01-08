@@ -14,30 +14,61 @@ if (!supabaseUrl || !supabaseServiceKey) {
 } else {
   const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
-  const setupStorage = async () => {
+  const setupStorageAndPolicies = async () => {
     try {
-      const { data: buckets, error: listError } = await supabaseAdmin.storage.listBuckets();
-      if (listError) throw listError;
-      
-      const bucketExists = buckets.some((bucket) => bucket.name === 'avatars');
+      // Create a helper function to execute raw SQL
+      const createFunctionQuery = `
+        CREATE OR REPLACE FUNCTION execute_sql(sql_query TEXT)
+        RETURNS void AS $$
+        BEGIN
+          EXECUTE sql_query;
+        END;
+        $$ LANGUAGE plpgsql;
+      `;
 
-      if (!bucketExists) {
-        console.log('Creating "avatars" bucket...');
-        const { error: createError } = await supabaseAdmin.storage.createBucket('avatars', {
-          public: true,
-        });
-        if (createError) throw createError;
-        console.log('"avatars" bucket created.');
-      } else {
-        console.log('"avatars" bucket already exists.');
+      const { error: functionError } = await supabaseAdmin.rpc('eval', { code: createFunctionQuery });
+      if (functionError) {
+        // Fallback for older projects that might not have the 'eval' function
+        if (functionError.message.includes('function eval(text) does not exist')) {
+            await supabaseAdmin.rpc('sql', { query: createFunctionQuery });
+        } else {
+            throw functionError;
+        }
       }
-      
-      console.log('Storage setup is complete. You can now upload avatars.');
+
+      console.log('Successfully created or replaced execute_sql function.');
+
+      // Define policies
+      const policies = [
+        // Allow public read access
+        `DROP POLICY IF EXISTS "Public read access for avatars" ON storage.objects;`,
+        `CREATE POLICY "Public read access for avatars" ON storage.objects FOR SELECT USING (bucket_id = 'avatars');`,
+        
+        // Allow authenticated users to upload
+        `DROP POLICY IF EXISTS "Authenticated users can upload avatars" ON storage.objects;`,
+        `CREATE POLICY "Authenticated users can upload avatars" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'avatars' AND auth.role() = 'authenticated');`,
+
+        // Allow users to update their own avatars
+        `DROP POLICY IF EXISTS "Users can update their own avatars" ON storage.objects;`,
+        `CREATE POLICY "Users can update their own avatars" ON storage.objects FOR UPDATE USING (auth.uid() = owner) WITH CHECK (bucket_id = 'avatars');`
+      ];
+
+      // Execute policies
+      for (const policy of policies) {
+        const { error: policyError } = await supabaseAdmin.rpc('execute_sql', { sql_query: policy });
+        if (policyError) {
+          console.error(`Error executing policy:`, policyError);
+        } else {
+          console.log(`Successfully executed policy.`);
+        }
+      }
+
+      console.log('Storage policies are set up. You should now be able to upload avatars.');
 
     } catch (error: any) {
       console.error('Error during storage setup:', error.message);
     }
   };
 
-  setupStorage();
+  setupStorageAndPolicies();
 }
