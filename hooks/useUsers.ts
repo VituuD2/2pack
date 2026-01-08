@@ -15,7 +15,11 @@ export const useUsers = () => {
       if (error) {
         console.error('Error fetching users:', error);
       } else {
-        setUsers(data);
+        const formattedUsers = data.map((user: any) => ({
+          ...user,
+          app_metadata: user.raw_app_meta_data
+        }));
+        setUsers(formattedUsers);
       }
       setLoading(false);
     };

@@ -67,8 +67,9 @@ export interface UserInvite {
 export interface AppUser {
   id: string;
   email: string;
-  last_sign_in_at: string;
-  app_metadata: {
+  full_name: string;
+  avatar_url: string;
+  raw_app_meta_data: {
     roles?: string[];
   };
 }
