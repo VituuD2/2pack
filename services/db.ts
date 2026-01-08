@@ -1,6 +1,6 @@
-import { Product, Shipment } from '../types';
-import { supabase, isSupabaseConfigured } from './supabaseClient';
-import { MOCK_PRODUCTS, MOCK_SHIPMENTS } from '../utils/mockData';
+import { Product, Shipment, UserProfile, UserInvite } from '@/types';
+import { supabase, isSupabaseConfigured } from '@/services/supabaseClient';
+import { MOCK_PRODUCTS, MOCK_SHIPMENTS } from '@/utils/mockData';
 
 // In-memory storage for Demo Mode
 let localProducts = [...MOCK_PRODUCTS];
@@ -51,7 +51,7 @@ export const db = {
       }
 
       const payload = {
-        sku: product.sku,it
+        sku: product.sku,
         title: product.title,
         barcode: product.barcode,
         unit_weight_kg: product.unit_weight_kg,
@@ -99,28 +99,34 @@ export const db = {
 
   scans: {
     log: async (productId: string): Promise<void> => {
-      if (!isSupabaseConfigured) {
-        console.log(`[Demo] Scan logged for product ${productId} by demo_user`);
-        return;
-      }
-
-      const { data: { user } } = await supabase.auth.getUser();
-      const operatorId = user?.id;
-
-      if (!operatorId) {
-          console.error("User not authenticated to log a scan.");
-          return;
-      }
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) throw new Error("User not authenticated to log a scan.");
 
       const { error } = await supabase.from('scans').insert([{
           product_id: productId,
-          operator_id: operatorId
+          operator_id: user.id,
       }]);
 
       if (error) {
         console.error('Error logging scan:', error);
         throw error;
       }
+    },
+    logWeightDivergence: async (shipmentId: string, theoreticalWeight: number, actualWeight: number) => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { error } = await supabase.from('scans').insert([{
+            product_id: null, // No specific product for a weight scan
+            operator_id: user.id,
+            scan_type: 'WEIGHT_DIVERGENCE',
+            metadata: {
+                shipmentId,
+                theoreticalWeight,
+                actualWeight
+            }
+        }]);
+        if (error) console.error("Failed to log weight divergence:", error);
     }
   },
 
@@ -134,7 +140,7 @@ export const db = {
       const { data, error } = await supabase.from('shipments').select('*');
       if (error) {
         console.warn('Error fetching shipments:', error);
-        return []; // Return empty array to avoid crashing the UI
+        return [];
       }
       return data as Shipment[];
     },
@@ -153,6 +159,74 @@ export const db = {
          console.error('Error updating shipment:', error);
          throw error;
       }
+    }
+  },
+  
+  auth: {
+    getCurrentUser: () => supabase.auth.getUser(),
+    signOut: () => supabase.auth.signOut(),
+    getUserProfile: async (): Promise<UserProfile | null> => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+      
+      if (error) {
+        console.error('Error fetching user profile:', error);
+        return null;
+      }
+      return data;
+    }
+  },
+
+  invites: {
+    getAll: async (): Promise<{ data: UserInvite[] | null, error: any }> => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return { data: [], error: 'Not authenticated' };
+
+        const { data: profile, error: profileError } = await supabase
+            .from('user_profiles')
+            .select('organization_id')
+            .eq('id', user.id)
+            .single();
+
+        if (profileError || !profile) {
+            return { data: [], error: 'Could not find user organization.' };
+        }
+
+        return await supabase
+            .from('user_invites')
+            .select('*')
+            .eq('organization_id', profile.organization_id);
+    },
+    create: async (email: string): Promise<{ error: any }> => {
+        const { data: { user } } = await supabase.auth.getUser();
+         if (!user) return { error: 'Not authenticated' };
+
+        const { data: profile, error: profileError } = await supabase
+            .from('user_profiles')
+            .select('organization_id')
+            .eq('id', user.id)
+            .single();
+        
+        if (profileError || !profile) {
+            return { error: 'Could not find user organization.' };
+        }
+
+        const { error } = await supabase.from('user_invites').insert([{
+            email,
+            organization_id: profile.organization_id,
+            invited_by: user.id
+        }]);
+
+        return { error };
+    },
+    delete: async (inviteId: string): Promise<{ error: any }> => {
+        return await supabase.from('user_invites').delete().eq('id', inviteId);
     }
   }
 };

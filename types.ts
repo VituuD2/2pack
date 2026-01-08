@@ -14,6 +14,7 @@ export interface Product {
   dimensions?: Dimensions;
   image_url: string;
   created_at?: string;
+  organization_id?: string; // Added for multi-tenancy
 }
 
 export interface Inventory {
@@ -45,9 +46,25 @@ export interface Shipment {
   items: ShipmentItem[];
   box_tare_kg: number;
   created_at: string;
+  organization_id?: string; // Added for multi-tenancy
 }
 
-export type ViewState = 'dashboard' | 'picking' | 'shipments' | 'products';
+export interface UserProfile {
+  id: string; // Corresponds to auth.users.id
+  organization_id: string;
+  role: 'admin' | 'operator';
+  email: string;
+}
+
+export interface UserInvite {
+  id: string;
+  email: string;
+  organization_id: string;
+  invited_by: string;
+  created_at: string;
+}
+
+export type ViewState = 'dashboard' | 'picking' | 'shipments' | 'products' | 'invites';
 
 export type ScanStatus = 'idle' | 'success' | 'error' | 'divergence';
 
