@@ -23,7 +23,6 @@ const AdminPanel = () => {
   };
 
   const handleGrantAdmin = async (userId: string) => {
-    // Basic confirmation before making such a critical change
     if (!confirm('Are you sure you want to grant admin privileges to this user?')) {
       return;
     }
@@ -74,6 +73,7 @@ const AdminPanel = () => {
               <thead className="border-b border-[var(--border-color-medium)]">
                 <tr>
                   <th className="p-2 font-semibold text-[var(--text-secondary)]">Email</th>
+                  <th className="p-2 font-semibold text-[var(--text-secondary)]">Last Sign In</th>
                   <th className="p-2 font-semibold text-[var(--text-secondary)]">Role</th>
                   <th className="p-2 font-semibold text-[var(--text-secondary)]">Actions</th>
                 </tr>
@@ -82,6 +82,7 @@ const AdminPanel = () => {
                 {users.map((user) => (
                   <tr key={user.id} className="border-b border-[var(--border-color)]">
                     <td className="p-2">{user.email}</td>
+                    <td className="p-2">{user.last_sign_in_at ? new Date(user.last_sign_in_at).toLocaleString() : 'Never'}</td>
                     <td className="p-2">
                       <span className={`px-2 py-1 rounded-full text-xs ${user.app_metadata?.roles?.includes('admin') ? 'bg-purple-500/20 text-purple-300' : 'bg-gray-500/20 text-gray-300'}`}>
                         {user.app_metadata?.roles?.includes('admin') ? 'Admin' : 'User'}

@@ -15,9 +15,13 @@ export const useUsers = () => {
       if (error) {
         console.error('Error fetching users:', error);
       } else {
-        const formattedUsers = data.map((user: any) => ({
-          ...user,
-          app_metadata: user.raw_app_meta_data
+        const formattedUsers: AppUser[] = data.map((user: any) => ({
+          id: user.id,
+          email: user.email,
+          last_sign_in_at: user.last_sign_in_at,
+          full_name: user.full_name, // This field is available from the RPC call
+          avatar_url: user.avatar_url, // This field is available from the RPC call
+          app_metadata: user.raw_app_meta_data, // Mapping the raw metadata to the expected property
         }));
         setUsers(formattedUsers);
       }
