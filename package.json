@@ -7,11 +7,13 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "setup:storage": "npx tsx lib/setupStorage.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.42.0",
     "@tailwindcss/postcss": "^4.1.18",
+    "dotenv": "^17.2.3",
     "lucide-react": "^0.562.0",
     "next": "^14.2.3",
     "react": "^18",
