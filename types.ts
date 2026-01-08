@@ -69,7 +69,7 @@ export interface AppUser {
   email: string;
   full_name: string;
   avatar_url: string;
-  raw_app_meta_data: {
+  app_metadata: {
     roles?: string[];
   };
 }
