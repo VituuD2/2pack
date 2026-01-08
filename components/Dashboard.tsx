@@ -3,8 +3,11 @@ import { GlassPanel } from './GlassPanel';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Package, CheckCircle, Clock, Activity, AlertTriangle } from 'lucide-react';
 import { db } from '../services/db';
+import AdminPanel from './AdminPanel';
+import { useAuth } from '../hooks/useAuth';
 
 export const Dashboard: React.FC = () => {
+  const { user, loading } = useAuth();
   const [stats, setStats] = useState({
     pending: 0,
     completed: 0,
@@ -25,6 +28,12 @@ export const Dashboard: React.FC = () => {
     
     fetchStats();
   }, []);
+
+  const isAdmin = user?.app_metadata?.roles?.includes('admin');
+
+  if (loading) {
+    return <p>Loading...</p>;
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -69,6 +78,8 @@ export const Dashboard: React.FC = () => {
           </div>
         </GlassPanel>
       </div>
+
+      {isAdmin && <AdminPanel />}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <GlassPanel className="lg:col-span-2 h-[400px] flex flex-col justify-center items-center text-center">

@@ -4,9 +4,15 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LayoutDashboard, Box, Settings, LogOut, ScanLine, PackageSearch } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 
 export const Sidebar: React.FC = () => {
   const pathname = usePathname();
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    window.location.href = '/';
+  };
 
   const NavButton = ({ href, icon, label }: { href: string; icon: React.ReactNode; label: string }) => {
     const isActive = pathname === href || (href !== '/' && pathname.startsWith(href));
@@ -45,10 +51,10 @@ export const Sidebar: React.FC = () => {
       </nav>
 
       <div className="pt-6 border-t border-[var(--border-color-medium)] space-y-2">
-        <button className="flex items-center gap-3 w-full p-3 text-[var(--text-secondary)] hover:text-white">
+        <Link href="/settings" className="flex items-center gap-3 w-full p-3 text-[var(--text-secondary)] hover:text-white">
           <Settings size={20} /> <span>Settings</span>
-        </button>
-        <button className="flex items-center gap-3 w-full p-3 text-red-400 hover:text-red-300">
+        </Link>
+        <button onClick={handleLogout} className="flex items-center gap-3 w-full p-3 text-red-400 hover:text-red-300">
           <LogOut size={20} /> <span>Logout</span>
         </button>
       </div>

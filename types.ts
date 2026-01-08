@@ -64,6 +64,15 @@ export interface UserInvite {
   created_at: string;
 }
 
+export interface AppUser {
+  id: string;
+  email: string;
+  last_sign_in_at: string;
+  app_metadata: {
+    roles?: string[];
+  };
+}
+
 export type ViewState = 'dashboard' | 'picking' | 'shipments' | 'products' | 'invites';
 
 export type ScanStatus = 'idle' | 'success' | 'error' | 'divergence';

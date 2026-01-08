@@ -4,7 +4,7 @@ import { MOCK_PRODUCTS, MOCK_SHIPMENTS } from '@/utils/mockData';
 
 // In-memory storage for Demo Mode
 let localProducts = [...MOCK_PRODUCTS];
-let localShipments = JSON.parse(JSON.stringify(MOCK_SHIPMENTS)); // Deep copy for mutable state
+let localShipments: Shipment[] = JSON.parse(JSON.stringify(MOCK_SHIPMENTS)); // Deep copy for mutable state
 
 export const db = {
   products: {

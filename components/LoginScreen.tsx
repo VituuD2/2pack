@@ -37,7 +37,7 @@ const LoginScreen: React.FC = () => {
     <div className="relative w-full h-screen flex items-center justify-center">
       <AuroraBackground />
       <div className="relative z-10 flex flex-col items-center w-full max-w-md p-8 m-4 bg-black/40 glass-panel-border rounded-2xl">
-        <h2 className="text-3xl font-bold mb-6 text-white">{isSignUp ? 'Create Account' : 'WMS Login'}</h2>
+        <h2 className="text-3xl font-bold mb-6 text-white">{isSignUp ? 'Create Account' : '2Pack Login'}</h2>
         
         {message ? (
           <p className="p-4 text-center text-green-300 bg-green-500/10 rounded-lg">{message}</p>
