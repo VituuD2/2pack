@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LayoutDashboard, Box, Settings, LogOut, ScanLine, PackageSearch } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { UserProfile } from './UserProfile'; // Import the new component
 
 export const Sidebar: React.FC = () => {
   const pathname = usePathname();
@@ -50,13 +51,16 @@ export const Sidebar: React.FC = () => {
         <NavButton href="/products" icon={<PackageSearch size={20}/>} label="Products" />
       </nav>
 
-      <div className="pt-6 border-t border-[var(--border-color-medium)] space-y-2">
-        <Link href="/settings" className="flex items-center gap-3 w-full p-3 text-[var(--text-secondary)] hover:text-white">
-          <Settings size={20} /> <span>Settings</span>
-        </Link>
-        <button onClick={handleLogout} className="flex items-center gap-3 w-full p-3 text-red-400 hover:text-red-300">
-          <LogOut size={20} /> <span>Logout</span>
-        </button>
+      <div className="pt-6 border-t border-[var(--border-color-medium)] space-y-4">
+        <UserProfile /> 
+        <div className="pt-2">
+          <Link href="/settings" className="flex items-center gap-3 w-full p-3 text-[var(--text-secondary)] hover:text-white">
+            <Settings size={20} /> <span>Settings</span>
+          </Link>
+          <button onClick={handleLogout} className="flex items-center gap-3 w-full p-3 text-red-400 hover:text-red-300">
+            <LogOut size={20} /> <span>Logout</span>
+          </button>
+        </div>
       </div>
     </aside>
   );

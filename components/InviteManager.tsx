@@ -67,7 +67,7 @@ export const InviteManager: React.FC = () => {
             onChange={(e) => setEmail(e.target.value)}
             className="flex-1 bg-white/10 border border-[var(--border-color-strong)] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--ios-blue)]"
           />
-          <button type="submit" disabled={loading} className="px-6 py-2 bg-[var(--ios-blue)] text-white font-bold rounded-lg hover:brightness-110 disabled:opacity-50">
+          <button type="submit" disabled={loading} className="btn-liquid-glass">
             {loading ? 'Sending...' : 'Invite'}
           </button>
         </form>

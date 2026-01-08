@@ -85,7 +85,7 @@ export const ProductManager: React.FC = () => {
         </h2>
         <button 
           onClick={() => setIsModalOpen(true)}
-          className="px-4 py-2 rounded-full bg-[var(--ios-blue)] text-white font-semibold flex items-center gap-2 hover:brightness-110 transition-all shadow-[0_0_15px_rgba(10,132,255,0.3)]"
+          className="btn-liquid-glass"
         >
           <Plus size={20} /> Add Product
         </button>
@@ -266,7 +266,7 @@ export const ProductManager: React.FC = () => {
                  </button>
                  <button 
                    onClick={handleSave}
-                   className="px-8 py-3 rounded-full bg-[var(--ios-blue)] text-white font-bold hover:shadow-[0_0_20px_rgba(10,132,255,0.4)] transition-all flex items-center gap-2"
+                   className="btn-liquid-glass"
                  >
                    <Save size={18} /> Save Product
                  </button>
