@@ -5,14 +5,29 @@ export interface Dimensions {
 }
 
 export interface Product {
-  id: string;
+  id: string; // uuid
   sku: string;
   barcode: string;
-  title: string;
+  title: string; // mapped to 'name' in DB if necessary, keeping title for frontend consistency
+  name?: string; 
   unit_weight_kg: number;
-  dimensions: Dimensions;
+  dimensions?: Dimensions;
   image_url: string;
-  created_at: string;
+  created_at?: string;
+}
+
+export interface Inventory {
+  id: string;
+  product_id: string;
+  quantity: number;
+  updated_at: string;
+}
+
+export interface Scan {
+  id: string;
+  product_id: string;
+  operator_id: string;
+  scanned_at: string;
 }
 
 export interface ShipmentItem {

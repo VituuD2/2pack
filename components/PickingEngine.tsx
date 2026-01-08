@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { GlassPanel } from './GlassPanel';
 import { Shipment, ScanResult } from '../types';
+import { db } from '../services/db';
+import { supabase } from '../services/supabaseClient';
 import { ScanBarcode, Box, AlertTriangle, Check, Scale } from 'lucide-react';
 
 interface PickingEngineProps {
@@ -13,11 +15,23 @@ export const PickingEngine: React.FC<PickingEngineProps> = ({ shipment, onCloseB
   const [scanResult, setScanResult] = useState<ScanResult>({ status: 'idle', message: 'Ready to scan...' });
   const [weightInput, setWeightInput] = useState<string>('');
   const [showWeightModal, setShowWeightModal] = useState(false);
+  const [operatorId, setOperatorId] = useState<string>('00000000-0000-0000-0000-000000000000'); // Default/Fallback
   const inputRef = useRef<HTMLInputElement>(null);
 
   // USB Scanner Emulation (Buffer)
   const barcodeBuffer = useRef<string>('');
   const lastKeyTime = useRef<number>(0);
+
+  useEffect(() => {
+    // Get current user for Scan Audit
+    const getUser = async () => {
+      const { data } = await supabase.auth.getUser();
+      if (data.user) {
+        setOperatorId(data.user.id);
+      }
+    };
+    getUser();
+  }, []);
 
   // Focus keeper
   useEffect(() => {
@@ -26,44 +40,68 @@ export const PickingEngine: React.FC<PickingEngineProps> = ({ shipment, onCloseB
     return () => clearInterval(interval);
   }, []);
 
-  const processBarcode = useCallback((barcode: string) => {
-    // 1. Find product in shipment
-    const itemIndex = shipment.items.findIndex(i => i.product.barcode === barcode);
-    
-    if (itemIndex === -1) {
-      setScanResult({ status: 'error', message: `Unknown Barcode: ${barcode}` });
-      // Play error sound here
-      return;
-    }
+  const processBarcode = useCallback(async (barcode: string) => {
+    setScanResult({ status: 'idle', message: 'Processing...' });
 
-    const item = shipment.items[itemIndex];
+    try {
+      // 1. Database Lookup (Verification Phase)
+      const product = await db.products.getByBarcode(barcode);
+      
+      if (!product) {
+        setScanResult({ status: 'error', message: `Unknown Barcode in DB: ${barcode}` });
+        return;
+      }
 
-    // 2. Check quantities (Divergence Control)
-    if (item.scanned_qty >= item.expected_qty) {
+      // 2. Shipment Context Validation
+      const itemIndex = shipment.items.findIndex(i => i.product.id === product.id || i.product.barcode === barcode);
+      
+      if (itemIndex === -1) {
+        setScanResult({ status: 'error', message: `Item not in this Shipment: ${product.title || product.name}` });
+        return;
+      }
+
+      const item = shipment.items[itemIndex];
+
+      // 3. Divergence Control
+      if (item.scanned_qty >= item.expected_qty) {
+        setScanResult({ 
+          status: 'divergence', 
+          message: `OVERPICK: ${item.product.title || item.product.name}. Expected: ${item.expected_qty}` 
+        });
+        return;
+      }
+
+      // 4. EXECUTE TRANSACTIONS (The "Secure Bipagem" Flow)
+      
+      // A. Log the Scan (Audit)
+      await db.scans.log(product.id, operatorId);
+
+      // B. Update Inventory (RPC)
+      // Assuming Inbound = Incrementing stock
+      await db.inventory.increment(product.id);
+
+      // C. Update Shipment State (Visual/Session)
+      const newItems = [...shipment.items];
+      newItems[itemIndex] = {
+        ...item,
+        scanned_qty: item.scanned_qty + 1
+      };
+
+      const updatedShipment = { ...shipment, items: newItems };
+      onUpdateShipment(updatedShipment);
+      
       setScanResult({ 
-        status: 'divergence', 
-        message: `OVERPICK: ${item.product.title}. Expected: ${item.expected_qty}` 
+        status: 'success', 
+        message: `SCANNED: ${product.title || product.name}`,
+        scannedSku: item.sku 
       });
-      return;
+
+    } catch (error) {
+      console.error(error);
+      setScanResult({ status: 'error', message: 'System Error during scan transaction' });
     }
 
-    // 3. Update Shipment
-    const newItems = [...shipment.items];
-    newItems[itemIndex] = {
-      ...item,
-      scanned_qty: item.scanned_qty + 1
-    };
-
-    const updatedShipment = { ...shipment, items: newItems };
-    onUpdateShipment(updatedShipment);
-    
-    setScanResult({ 
-      status: 'success', 
-      message: `SCANNED: ${item.product.title}`,
-      scannedSku: item.sku 
-    });
-
-  }, [shipment, onUpdateShipment]);
+  }, [shipment, onUpdateShipment, operatorId]);
 
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -73,15 +111,13 @@ export const PickingEngine: React.FC<PickingEngineProps> = ({ shipment, onCloseB
       if (barcodeBuffer.current.length > 0) {
         processBarcode(barcodeBuffer.current);
         barcodeBuffer.current = '';
-        setWeightInput(''); // Clear any manual input just in case
+        setWeightInput(''); 
       }
       return;
     }
 
-    // Heuristic: Scanners type very fast (<30ms between keys usually)
-    // If user is manually typing, we might want to allow it, but for strictness:
     if (currentTime - lastKeyTime.current > 500) {
-       barcodeBuffer.current = ''; // Reset buffer if too slow (debounce/timeout)
+       barcodeBuffer.current = ''; 
     }
 
     lastKeyTime.current = currentTime;
@@ -156,8 +192,8 @@ export const PickingEngine: React.FC<PickingEngineProps> = ({ shipment, onCloseB
               className="w-full bg-black/20 border border-[var(--border-color-strong)] rounded-full py-4 px-6 text-center text-xl focus:outline-none focus:ring-2 focus:ring-[var(--ios-blue)] transition-all"
               placeholder="Scan Item Barcode..."
               onKeyDown={handleKeyDown}
-              onChange={() => {}} // Controlled by buffer
-              value={barcodeBuffer.current} // Just for visual feedback if needed, mostly hidden
+              onChange={() => {}} 
+              value={barcodeBuffer.current} 
            />
            <ScanBarcode className="absolute right-5 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]" />
         </div>
@@ -182,7 +218,7 @@ export const PickingEngine: React.FC<PickingEngineProps> = ({ shipment, onCloseB
             >
               <img src={item.product.image_url} alt="" className="w-12 h-12 rounded bg-black/50 object-cover" />
               <div className="ml-4 flex-1">
-                <p className="font-medium">{item.product.title}</p>
+                <p className="font-medium">{item.product.title || item.product.name}</p>
                 <p className="text-sm text-[var(--text-secondary)]">{item.sku}</p>
               </div>
               <div className="text-right">
