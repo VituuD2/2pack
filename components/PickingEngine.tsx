@@ -74,7 +74,7 @@ export const PickingEngine: React.FC<PickingEngineProps> = ({ shipment, onCloseB
       // 4. EXECUTE TRANSACTIONS (The "Secure Bipagem" Flow)
       
       // A. Log the Scan (Audit)
-      await db.scans.log(product.id, operatorId);
+      await db.scans.log(product.id);
 
       // B. Update Inventory (RPC)
       // Assuming Inbound = Incrementing stock
