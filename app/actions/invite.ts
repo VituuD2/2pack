@@ -5,6 +5,9 @@ import { createClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
 
 export async function inviteUser(email: string) {
+  // Log the environment variable to Vercel's runtime logs
+  console.log("Attempting to read SUPABASE_SERVICE_ROLE_KEY:", process.env.SUPABASE_SERVICE_ROLE_KEY ? "Key Found" : "Key NOT Found");
+
   const supabase = createServerClient();
 
   const { data: { user } } = await supabase.auth.getUser();
@@ -44,6 +47,8 @@ export async function inviteUser(email: string) {
   });
 
   if (inviteError) {
+    // Also log the error here for more context
+    console.error("Supabase invite error:", inviteError);
     return {
       error: inviteError.message,
     };
