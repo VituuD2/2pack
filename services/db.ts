@@ -1,4 +1,4 @@
-import { Product, Shipment, Scan } from '../types';
+import { Product, Shipment } from '../types';
 import { supabase, isSupabaseConfigured } from './supabaseClient';
 import { MOCK_PRODUCTS, MOCK_SHIPMENTS } from '../utils/mockData';
 
@@ -9,19 +9,22 @@ let localShipments = JSON.parse(JSON.stringify(MOCK_SHIPMENTS)); // Deep copy fo
 export const db = {
   products: {
     getAll: async (): Promise<Product[]> => {
-      if (!isSupabaseConfigured) return new Promise(resolve => setTimeout(() => resolve([...localProducts]), 500));
+      if (!isSupabaseConfigured) {
+        console.log('[Demo] Getting all products.');
+        return new Promise(resolve => setTimeout(() => resolve([...localProducts]), 500));
+      }
 
       const { data, error } = await supabase.from('products').select('*');
-      
       if (error) {
-        console.error('Error fetching products:', error.message || JSON.stringify(error));
-        return [];
+        console.error('Error fetching products:', error);
+        throw error;
       }
-      return data as Product[];
+      return data;
     },
     
     getByBarcode: async (barcode: string): Promise<Product | null> => {
       if (!isSupabaseConfigured) {
+        console.log(`[Demo] Getting product by barcode: ${barcode}`);
         return localProducts.find(p => p.barcode === barcode) || null;
       }
 
@@ -31,45 +34,40 @@ export const db = {
         .eq('barcode', barcode)
         .single();
       
-      if (error) {
-        if (error.code !== 'PGRST116') {
-           console.error('Error searching barcode:', error.message || JSON.stringify(error));
-        }
-        return null;
+      if (error && error.code !== 'PGRST116') {
+         console.error('Error searching barcode:', error);
+         throw error;
       }
-      return data as Product;
+      
+      return data;
     },
 
-    add: async (product: Product): Promise<void> => {
-      if (!isSupabaseConfigured) {
-        localProducts.push(product);
-        return;
+    add: async (product: Omit<Product, 'id' | 'created_at'>): Promise<Product> => {
+       if (!isSupabaseConfigured) {
+        console.log('[Demo] Adding new product.');
+        const newProduct = { ...product, id: new Date().toISOString(), created_at: new Date().toISOString() };
+        localProducts.push(newProduct as Product);
+        return newProduct as Product;
       }
 
-      const payload = {
-        sku: product.sku,
-        name: product.title || product.name,
-        barcode: product.barcode,
-        unit_weight_kg: product.unit_weight_kg,
-        image_url: product.image_url
-      };
-
-      const { error } = await supabase.from('products').insert([payload]);
+      const { data, error } = await supabase.from('products').insert([product]).select().single();
       if (error) {
-        console.error('Error adding product:', error.message || JSON.stringify(error));
+        console.error('Error adding product:', error);
         throw error;
       }
+      return data;
     },
 
     delete: async (id: string): Promise<void> => {
       if (!isSupabaseConfigured) {
+        console.log(`[Demo] Deleting product ${id}`);
         localProducts = localProducts.filter(p => p.id !== id);
         return;
       }
 
       const { error } = await supabase.from('products').delete().eq('id', id);
       if (error) {
-        console.error('Error deleting product:', error.message || JSON.stringify(error));
+        console.error('Error deleting product:', error);
         throw error;
       }
     }
@@ -84,7 +82,7 @@ export const db = {
 
       const { error } = await supabase.rpc('increment_inventory', { p_product_id: productId });
       if (error) {
-        console.error('Error incrementing inventory:', error.message || JSON.stringify(error));
+        console.error('Error incrementing inventory:', error);
         throw error;
       }
     }
@@ -99,37 +97,44 @@ export const db = {
 
       const { error } = await supabase.from('scans').insert([{
           product_id: productId,
-          operator_id: operatorId,
-          scanned_at: new Date().toISOString()
+          operator_id: operatorId
       }]);
 
       if (error) {
-        console.error('Error logging scan:', error.message || JSON.stringify(error));
+        console.error('Error logging scan:', error);
+        throw error;
       }
     }
   },
 
   shipments: {
     getAll: async (): Promise<Shipment[]> => {
-      if (!isSupabaseConfigured) return new Promise(resolve => setTimeout(() => resolve([...localShipments]), 500));
+      if (!isSupabaseConfigured) {
+        console.log('[Demo] Getting all shipments.');
+        return new Promise(resolve => setTimeout(() => resolve([...localShipments]), 500));
+      }
 
       const { data, error } = await supabase.from('shipments').select('*');
       if (error) {
-        console.warn('Error fetching shipments:', error.message || JSON.stringify(error));
+        console.warn('Error fetching shipments:', error);
         return [];
       }
       return data as Shipment[];
     },
-    update: async (shipment: Shipment): Promise<void> => {
+    update: async (shipment: Partial<Shipment> & { id: string }): Promise<void> => {
       if (!isSupabaseConfigured) {
+        console.log(`[Demo] Updating shipment ${shipment.id}`);
         const index = localShipments.findIndex(s => s.id === shipment.id);
-        if (index !== -1) localShipments[index] = shipment;
+        if (index !== -1) {
+            localShipments[index] = { ...localShipments[index], ...shipment };
+        }
         return;
       }
 
       const { error } = await supabase.from('shipments').update(shipment).eq('id', shipment.id);
       if (error) {
-         console.error('Error updating shipment:', error.message || JSON.stringify(error));
+         console.error('Error updating shipment:', error);
+         throw error;
       }
     }
   }
