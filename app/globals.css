@@ -84,3 +84,71 @@ body {
   background-color: var(--button-secondary-bg);
   border-radius: 10px;
 }
+
+.btn-liquid-glass {
+    /* --- Layout & Typography (Same structure as before) --- */
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.6rem 1.2rem;
+    border-radius: 999px; /* Pill shape */
+    
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.9); /* Slightly softer white text */
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+    /* --- THE GLASS EFFECT --- */
+    
+    /* 1. The Base Layer: Very subtle semi-transparent white gradient */
+    background: linear-gradient(
+        to bottom right, 
+        rgba(255, 255, 255, 0.15), 
+        rgba(255, 255, 255, 0.05)
+    );
+    
+    /* 2. The Blur: This is crucial. It blurs whatever is *behind* the button. */
+    backdrop-filter: blur(12px) saturate(110%);
+    -webkit-backdrop-filter: blur(12px) saturate(110%); /* Safari support */
+    
+    /* 3. The Edges: A very thin, crisp semi-transparent border defines the shape */
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    
+    /* 4. Reflection & Depth: Subtle inner highlight at the top to make it look rounded */
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.3);
+}
+
+/* --- Interactions --- */
+
+/* Hover State: The glass becomes slightly "frosted" and brighter */
+.btn-liquid-glass:hover {
+    background: linear-gradient(
+        to bottom right, 
+        rgba(255, 255, 255, 0.25), 
+        rgba(255, 255, 255, 0.1)
+    );
+    border-color: rgba(255, 255, 255, 0.3);
+    color: #ffffff;
+    transform: translateY(-1px);
+    /* Add a very subtle outer glow on hover */
+    box-shadow: 
+        inset 0 1px 1px rgba(255, 255, 255, 0.4),
+        0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+/* Active (Click) State: Feels like pressing into the glass physically */
+.btn-liquid-glass:active {
+    transform: scale(0.98) translateY(0);
+    background: rgba(255, 255, 255, 0.1);
+    /* Instead of an outer glow, use an inner shadow to simulate depression */
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(6px); /* Slightly less blurry when pressed closer to background */
+}
+
+/* Ensure icon scales properly */
+.btn-liquid-glass svg {
+    display: block;
+    opacity: 0.9;
+}
