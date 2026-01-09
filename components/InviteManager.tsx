@@ -34,7 +34,8 @@ export const InviteManager: React.FC = () => {
     setError(null);
 
     try {
-      const result = await inviteUser(email); // Use the server action
+      const temporaryPassword = Math.random().toString(36).slice(-8);
+      const result = await inviteUser(email, temporaryPassword);
       if (result.error) {
         throw new Error(result.error);
       }
