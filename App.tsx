@@ -11,50 +11,27 @@ import { db } from '@/services/db';
 import { supabase } from '@/services/supabaseClient';
 import LoginScreen from '@/components/LoginScreen';
 import LoadingScreen  from '@/components/LoadingScreen';
+import { useAuth } from '@/hooks/useAuth';
 
 const App: React.FC = () => {
-  const [session, setSession] = useState<any>(null);
-  const [initializing, setInitializing] = useState(true);
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const { session, userProfile, loading: authLoading } = useAuth();
   const [currentView, setCurrentView] = useState<ViewState>('dashboard');
   const [shipments, setShipments] = useState<Shipment[]>([]);
   const [activeShipmentId, setActiveShipmentId] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchInitialData = async () => {
-      try {
-        const { data: { session: currentSession } } = await supabase.auth.getSession();
-        setSession(currentSession);
+    if (session) {
+      db.shipments.getAll().then(setShipments);
+    }
+  }, [session]);
 
-        if (currentSession) {
-          const [profile, shipmentData] = await Promise.all([
-            db.auth.getUserProfile(),
-            db.shipments.getAll()
-          ]);
-          setUserProfile(profile);
-          setShipments(shipmentData);
-        }
-      } catch (err) {
-        console.error("Erro na inicialização:", err);
-      } finally {
-        setInitializing(false);
-      }
-    };
+  if (authLoading) {
+    return <LoadingScreen />;
+  }
 
-    fetchInitialData();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setSession(session);
-      if (session) {
-        const profile = await db.auth.getUserProfile();
-        setUserProfile(profile);
-      } else {
-        setUserProfile(null);
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
+  if (!session) {
+    return <LoginScreen />;
+  }
 
   const activeShipment = shipments.find(s => s.id === activeShipmentId);
 
@@ -96,14 +73,6 @@ const App: React.FC = () => {
       <span className="font-medium">{label}</span>
     </button>
   );
-
-  if (initializing) {
-    return <LoadingScreen />;
-  }
-
-  if (!session) {
-    return <LoginScreen />;
-  }
 
   return (
     <div className="flex h-screen w-full overflow-hidden text-[var(--text-primary)]">
@@ -163,7 +132,7 @@ const App: React.FC = () => {
         </header>
 
         <div className="flex-1 overflow-auto px-2 pb-4">
-           {currentView === 'dashboard' && <Dashboard shipments={shipments} />}
+           <Dashboard shipments={shipments} />
            {currentView === 'shipments' && <ShipmentList shipments={shipments} onSelect={handleShipmentSelect} />}
            {currentView === 'products' && <ProductManager />}
            {currentView === 'invites' && <InviteManager />}
