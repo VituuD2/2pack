@@ -4,10 +4,11 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { Package, CheckCircle, Clock, Activity, AlertTriangle } from 'lucide-react';
 import { db } from '../services/db';
 import AdminPanel from './AdminPanel';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '@/hooks/useAuth';
 
 export const Dashboard: React.FC = () => {
-  const { user, loading } = useAuth();
+  const { session, loading } = useAuth();
+  const user = session?.user;
   const [stats, setStats] = useState({
     pending: 0,
     completed: 0,

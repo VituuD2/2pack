@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { useUsers } from '../hooks/useUsers';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '../lib/supabase';
 
 const AdminPanel = () => {
   const { users, loading } = useUsers();
-  const { user: currentUser } = useAuth();
+  const { session } = useAuth();
+  const currentUser = session?.user;
 
   const handleGrantAdmin = async (userId: string) => {
     if (!confirm('Are you sure you want to grant admin privileges to this user?')) {
