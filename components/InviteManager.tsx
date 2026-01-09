@@ -5,7 +5,7 @@ import { GlassPanel } from './GlassPanel';
 import { db } from '../services/db';
 import { UserInvite } from '../types';
 import { MailPlus, User, X } from 'lucide-react';
-import { inviteUser } from '../app/actions/invite'; // Updated import
+import { createUser as inviteUser } from '../app/actions/createUser';
 
 export const InviteManager: React.FC = () => {
   const [invites, setInvites] = useState<UserInvite[]>([]);
