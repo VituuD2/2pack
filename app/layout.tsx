@@ -1,21 +1,18 @@
+'use client';
 import './globals.css';
 import React from 'react';
+import { usePathname } from 'next/navigation';
 import { Sidebar } from '@/components/Sidebar';
 import { AuroraBackground } from '@/components/AuroraBackground';
 import { NotificationProvider } from '@/components/NotificationContext';
 import { AuthGuard } from '@/components/AuthGuard';
 import { AuthProvider } from '@/hooks/useAuth';
 
-export const metadata = {
-  title: '2pack APPLICATION',
-  description: 'WMS Lite for Mercado Libre FULL Inbound automation.',
-};
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const noSidebarRoutes = ['/login', '/forgot-password', '/reset-password'];
+  const shouldShowSidebar = !noSidebarRoutes.includes(pathname);
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
   return (
     <html lang="en">
       <head>
@@ -27,7 +24,7 @@ export default function RootLayout({
           <AuthProvider>
             <AuroraBackground />
             <AuthGuard>
-              <Sidebar />
+              {shouldShowSidebar && <Sidebar />}
               <main className="flex-1 p-4 h-full overflow-hidden flex flex-col relative z-0">
                 {children}
               </main>
