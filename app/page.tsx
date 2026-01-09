@@ -3,9 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import LoadingScreen from '@/components/LoadingScreen';
-import LoginScreen from '@/components/LoginScreen';
 import { Dashboard } from '@/components/Dashboard';
-import { db } from '@/lib/db';
+import { db } from '@/services/db';
 import { UserProfile } from '@/types';
 import { Shipment } from '@/types';
 
@@ -37,10 +36,6 @@ const App: React.FC = () => {
     return <LoadingScreen />;
   }
 
-  if (!session) {
-    return <LoginScreen />;
-  }
-
   if (dataLoading && !userProfile) {
     return <LoadingScreen />;
   }
@@ -65,7 +60,7 @@ const App: React.FC = () => {
          </div>
       </header>
       <div className="flex-1 overflow-auto px-2 pb-4">
-        <Dashboard />
+        <Dashboard shipments={shipments} />
       </div>
     </>
   );

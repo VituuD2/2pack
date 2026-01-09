@@ -10,9 +10,11 @@ import { ViewState, Shipment, UserProfile } from '@/types';
 import { db } from '@/services/db';
 import { supabase } from '@/services/supabaseClient';
 import LoginScreen from '@/components/LoginScreen';
+import LoadingScreen  from '@/components/LoadingScreen';
 
 const App: React.FC = () => {
   const [session, setSession] = useState<any>(null);
+  const [initializing, setInitializing] = useState(true);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [currentView, setCurrentView] = useState<ViewState>('dashboard');
   const [shipments, setShipments] = useState<Shipment[]>([]);
@@ -20,14 +22,22 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const fetchInitialData = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setSession(session);
+      try {
+        const { data: { session: currentSession } } = await supabase.auth.getSession();
+        setSession(currentSession);
 
-      if (session) {
-        const profile = await db.auth.getUserProfile();
-        setUserProfile(profile);
-        const shipmentData = await db.shipments.getAll();
-        setShipments(shipmentData);
+        if (currentSession) {
+          const [profile, shipmentData] = await Promise.all([
+            db.auth.getUserProfile(),
+            db.shipments.getAll()
+          ]);
+          setUserProfile(profile);
+          setShipments(shipmentData);
+        }
+      } catch (err) {
+        console.error("Erro na inicialização:", err);
+      } finally {
+        setInitializing(false);
       }
     };
 
@@ -71,14 +81,14 @@ const App: React.FC = () => {
   };
 
   const NavButton: React.FC<{ view: ViewState; icon: React.ReactNode; label: string }> = ({ view, icon, label }) => (
-    <button 
+    <button
       onClick={() => {
         setActiveShipmentId(null);
         setCurrentView(view);
       }}
       className={`flex items-center gap-3 w-full p-3 rounded-xl transition-all ${
-        currentView === view 
-        ? 'bg-[var(--glass-panel-bg)] border border-[var(--border-color-strong)] text-white shadow-[0_0_15px_rgba(255,255,255,0.1)]' 
+        currentView === view
+        ? 'bg-[var(--glass-panel-bg)] border border-[var(--border-color-strong)] text-white shadow-[0_0_15px_rgba(255,255,255,0.1)]'
         : 'text-[var(--text-secondary)] hover:text-white hover:bg-white/5'
       }`}
     >
@@ -86,6 +96,10 @@ const App: React.FC = () => {
       <span className="font-medium">{label}</span>
     </button>
   );
+
+  if (initializing) {
+    return <LoadingScreen />;
+  }
 
   if (!session) {
     return <LoginScreen />;
@@ -130,13 +144,13 @@ const App: React.FC = () => {
            <div>
              <h2 className="text-2xl font-bold capitalize">{activeShipmentId ? 'Picking Session' : currentView}</h2>
              <p className="text-[var(--text-secondary)] text-sm">
-                {activeShipmentId ? `Shipment: ${activeShipment?.meli_id}` : 
+                {activeShipmentId ? `Shipment: ${activeShipment?.meli_id}` :
                  currentView === 'products' ? 'Manage your inventory master data' :
                  currentView === 'invites' ? 'Manage user access to your organization' :
                  'Overview of your warehouse activity'}
              </p>
            </div>
-           
+
            <div className="flex items-center gap-4">
               <div className="flex items-center gap-2 px-4 py-2 bg-black/30 rounded-full border border-[var(--border-color-medium)]">
                  <div className="w-2 h-2 rounded-full bg-gray-500"></div>
@@ -149,15 +163,15 @@ const App: React.FC = () => {
         </header>
 
         <div className="flex-1 overflow-auto px-2 pb-4">
-           {currentView === 'dashboard' && <Dashboard />}
+           {currentView === 'dashboard' && <Dashboard shipments={shipments} />}
            {currentView === 'shipments' && <ShipmentList shipments={shipments} onSelect={handleShipmentSelect} />}
            {currentView === 'products' && <ProductManager />}
            {currentView === 'invites' && <InviteManager />}
            {currentView === 'picking' && activeShipment && (
-             <PickingEngine 
-               shipment={activeShipment} 
+             <PickingEngine
+               shipment={activeShipment}
                onUpdateShipment={handleUpdateShipment}
-               onCloseBox={handleCloseBox} 
+               onCloseBox={handleCloseBox}
              />
            )}
         </div>

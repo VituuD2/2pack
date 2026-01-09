@@ -2,11 +2,15 @@ import React, { useEffect, useState } from 'react';
 import { GlassPanel } from './GlassPanel';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Package, CheckCircle, Clock, Activity, AlertTriangle } from 'lucide-react';
-import { db } from '../services/db';
 import AdminPanel from './AdminPanel';
 import { useAuth } from '@/hooks/useAuth';
+import { Shipment } from '@/types';
 
-export const Dashboard: React.FC = () => {
+interface DashboardProps {
+  shipments: Shipment[];
+}
+
+export const Dashboard: React.FC<DashboardProps> = ({ shipments }) => {
   const { session, loading } = useAuth();
   const user = session?.user;
   const [stats, setStats] = useState({
@@ -17,18 +21,13 @@ export const Dashboard: React.FC = () => {
   });
 
   useEffect(() => {
-    const fetchStats = async () => {
-      const shipments = await db.shipments.getAll();
-      setStats({
-        pending: shipments.filter(s => s.status !== 'completed').length,
-        completed: shipments.filter(s => s.status === 'completed').length,
-        itemsPerMin: 0,
-        avgTime: 0
-      });
-    };
-    
-    fetchStats();
-  }, []);
+    setStats({
+      pending: shipments.filter(s => s.status !== 'completed').length,
+      completed: shipments.filter(s => s.status === 'completed').length,
+      itemsPerMin: 0,
+      avgTime: 0
+    });
+  }, [shipments]);
 
   const isAdmin = user?.app_metadata?.roles?.includes('admin');
 
