@@ -2,7 +2,9 @@ import './globals.css';
 import React from 'react';
 import { Sidebar } from '@/components/Sidebar';
 import { AuroraBackground } from '@/components/AuroraBackground';
-import { NotificationProvider } from '@/components/NotificationContext'; // Import the provider
+import { NotificationProvider } from '@/components/NotificationContext';
+import { AuthGuard } from '@/components/AuthGuard';
+import { AuthProvider } from '@/hooks/useAuth';
 
 export const metadata = {
   title: '2pack APPLICATION',
@@ -21,14 +23,16 @@ export default function RootLayout({
         <script src="https://cdn.tailwindcss.com"></script>
       </head>
       <body className="flex h-screen w-full overflow-hidden bg-black text-white font-[Inter]">
-        <NotificationProvider> {/* Wrap the layout with the provider */}
-          <AuroraBackground />
-          
-          <Sidebar />
-          
-          <main className="flex-1 p-4 h-full overflow-hidden flex flex-col relative z-0">
-            {children}
-          </main>
+        <NotificationProvider>
+          <AuthProvider>
+            <AuroraBackground />
+            <AuthGuard>
+              <Sidebar />
+              <main className="flex-1 p-4 h-full overflow-hidden flex flex-col relative z-0">
+                {children}
+              </main>
+            </AuthGuard>
+          </AuthProvider>
         </NotificationProvider>
       </body>
     </html>

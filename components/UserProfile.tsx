@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import { User } from '@supabase/supabase-js';
 import { Settings, LogOut, ChevronDown } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation'; // Import useRouter
 
 // Helper function to format time since last sign-in
 const timeSince = (date: Date): string => {
@@ -27,6 +28,7 @@ export const UserProfile: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [lastSignIn, setLastSignIn] = useState<string>('Loading...');
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const router = useRouter(); // Initialize the router
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -57,7 +59,7 @@ export const UserProfile: React.FC = () => {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    window.location.href = '/';
+    router.push('/login'); // Redirect to login page
   };
 
   return (
