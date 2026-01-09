@@ -5,13 +5,14 @@ import { GlassPanel } from '@/components/GlassPanel';
 import { supabase } from '@/lib/supabase';
 import { User } from '@supabase/supabase-js';
 import { useNotification } from '@/components/NotificationContext';
-import { inviteUser } from '@/app/actions/invite';
+import { createUser } from '@/app/actions/createUser';
 
 const SettingsPage: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [isInviting, setIsInviting] = useState(false);
+  const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserPassword, setNewUserPassword] = useState('');
+  const [isCreatingUser, setIsCreatingUser] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { showNotification } = useNotification();
 
@@ -61,7 +62,6 @@ const SettingsPage: React.FC = () => {
       if (updateUserError) throw updateUserError;
 
       showNotification('Avatar updated successfully!', 'success');
-      // Give a moment for the user to see the notification
       setTimeout(() => window.location.reload(), 1000);
 
     } catch (error: any) {
@@ -72,20 +72,21 @@ const SettingsPage: React.FC = () => {
     }
   };
 
-  const handleInviteUser = async (e: React.FormEvent) => {
+  const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inviteEmail) return;
+    if (!newUserEmail || !newUserPassword) return;
 
-    setIsInviting(true);
-    const result = await inviteUser(inviteEmail);
+    setIsCreatingUser(true);
+    const result = await createUser(newUserEmail, newUserPassword);
 
     if (result.error) {
       showNotification(result.error, 'error');
     } else {
-      showNotification('User invited successfully!', 'success');
-      setInviteEmail('');
+      showNotification('User created successfully!', 'success');
+      setNewUserEmail('');
+      setNewUserPassword('');
     }
-    setIsInviting(false);
+    setIsCreatingUser(false);
   };
 
   return (
@@ -112,7 +113,7 @@ const SettingsPage: React.FC = () => {
               />
               <button
                 onClick={handleAvatarChangeClick}
-                className="btn-liquid-glass"
+                className="font-bold bg-[var(--ios-blue)] text-white py-2 px-5 rounded-lg hover:brightness-110 transition-all"
                 disabled={isUploading}
               >
                 {isUploading ? 'Uploading...' : 'Upload Image'}
@@ -123,18 +124,26 @@ const SettingsPage: React.FC = () => {
         </GlassPanel>
 
         <GlassPanel>
-          <h2 className="text-xl font-semibold mb-4">Invite User</h2>
-          <form onSubmit={handleInviteUser} className="flex items-center gap-4">
+          <h2 className="text-xl font-semibold mb-4">Create New User</h2>
+          <form onSubmit={handleCreateUser} className="flex flex-col gap-4">
             <input
               type="email"
-              value={inviteEmail}
-              onChange={(e) => setInviteEmail(e.target.value)}
+              value={newUserEmail}
+              onChange={(e) => setNewUserEmail(e.target.value)}
               placeholder="user@example.com"
-              className="flex-grow rounded-lg px-3 py-2 bg-[var(--control-bg)] border border-[var(--border-color-medium)] text-[var(--text-primary)] placeholder-[var(--text-secondary)] focus:ring-1 focus:ring-[var(--ios-blue)] focus:outline-none"
+              className="w-full rounded-lg px-3 py-2 bg-[var(--control-bg)] border border-[var(--border-color-medium)] text-[var(--text-primary)] placeholder-[var(--text-secondary)] focus:ring-1 focus:ring-[var(--ios-blue)] focus:outline-none"
               required
             />
-            <button type="submit" className="font-bold bg-[var(--ios-blue)] text-white py-2 px-5 rounded-lg hover:brightness-110 transition-all" disabled={isInviting}>
-              {isInviting ? 'Sending...' : 'Send Invite'}
+            <input
+              type="password"
+              value={newUserPassword}
+              onChange={(e) => setNewUserPassword(e.target.value)}
+              placeholder="Temporary Password"
+              className="w-full rounded-lg px-3 py-2 bg-[var(--control-bg)] border border-[var(--border-color-medium)] text-[var(--text-primary)] placeholder-[var(--text-secondary)] focus:ring-1 focus:ring-[var(--ios-blue)] focus:outline-none"
+              required
+            />
+            <button type="submit" className="font-bold bg-[var(--ios-blue)] text-white py-2 px-5 rounded-lg hover:brightness-110 transition-all" disabled={isCreatingUser}>
+              {isCreatingUser ? 'Creating...' : 'Create User'}
             </button>
           </form>
         </GlassPanel>
