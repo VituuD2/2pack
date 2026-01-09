@@ -1,8 +1,50 @@
 'use client';
 
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '@/hooks/useAuth';
+import LoadingScreen from '@/components/LoadingScreen';
+import LoginScreen from '@/components/LoginScreen';
 import { Dashboard } from '@/components/Dashboard';
+import { db } from '@/lib/db';
+import { UserProfile } from '@/types';
+import { Shipment } from '@/types';
 
-export default function Page() {
+const App: React.FC = () => {
+  const { session, loading: authLoading } = useAuth();
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [shipments, setShipments] = useState<Shipment[]>([]);
+  const [dataLoading, setDataLoading] = useState(false);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      if (session) {
+        setDataLoading(true);
+        try {
+          const profile = await db.auth.getUserProfile();
+          setUserProfile(profile);
+          const shipmentData = await db.shipments.getAll();
+          setShipments(shipmentData);
+        } finally {
+          setDataLoading(false);
+        }
+      }
+    };
+
+    fetchData();
+  }, [session]);
+
+  if (authLoading) {
+    return <LoadingScreen />;
+  }
+
+  if (!session) {
+    return <LoginScreen />;
+  }
+
+  if (dataLoading && !userProfile) {
+    return <LoadingScreen />;
+  }
+
   return (
     <>
       <header className="flex justify-between items-center mb-6 px-4 pt-2">
@@ -27,4 +69,6 @@ export default function Page() {
       </div>
     </>
   );
-}
+};
+
+export default App;
