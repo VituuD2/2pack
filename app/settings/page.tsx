@@ -130,10 +130,10 @@ const SettingsPage: React.FC = () => {
               value={inviteEmail}
               onChange={(e) => setInviteEmail(e.target.value)}
               placeholder="user@example.com"
-              className="input-glass flex-grow"
+              className="flex-grow rounded-lg px-3 py-2 bg-[var(--control-bg)] border border-[var(--border-color-medium)] text-[var(--text-primary)] placeholder-[var(--text-secondary)] focus:ring-1 focus:ring-[var(--ios-blue)] focus:outline-none"
               required
             />
-            <button type="submit" className="btn-liquid-glass" disabled={isInviting}>
+            <button type="submit" className="font-bold bg-[var(--ios-blue)] text-white py-2 px-5 rounded-lg hover:brightness-110 transition-all" disabled={isInviting}>
               {isInviting ? 'Sending...' : 'Send Invite'}
             </button>
           </form>

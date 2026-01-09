@@ -6,21 +6,6 @@ import { supabase } from '../lib/supabase';
 const AdminPanel = () => {
   const { users, loading } = useUsers();
   const { user: currentUser } = useAuth();
-  const [email, setEmail] = useState('');
-
-  const handleInvite = async () => {
-    if (!email) return;
-    const { data, error } = await supabase.auth.admin.inviteUserByEmail(email);
-    if (error) {
-      console.error('Error inviting user:', error);
-      alert(`Error inviting user: ${error.message}`);
-    } else {
-      console.log('Invited user:', data);
-      alert('Invite sent successfully!');
-      setEmail('');
-      // Consider refreshing the users list here
-    }
-  };
 
   const handleGrantAdmin = async (userId: string) => {
     if (!confirm('Are you sure you want to grant admin privileges to this user?')) {
@@ -41,26 +26,6 @@ const AdminPanel = () => {
   return (
     <div className="glass-panel p-6">
       <h2 className="text-xl font-bold mb-4">Admin Panel</h2>
-      
-      {/* Invite User Section */}
-      <div className="mb-6">
-        <h3 className="text-lg font-semibold mb-2">Invite User</h3>
-        <div className="flex gap-2">
-          <input
-            type="email"
-            placeholder="Enter user email"
-            className="flex-grow rounded-lg px-3 py-2 bg-[var(--control-bg)] border border-[var(--border-color-medium)] text-[var(--text-primary)] placeholder-[var(--text-secondary)] focus:ring-1 focus:ring-[var(--ios-blue)] focus:outline-none"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-          <button 
-            className="font-bold bg-[var(--ios-blue)] text-white py-2 px-5 rounded-lg hover:brightness-110 transition-all" 
-            onClick={handleInvite}
-          >
-            Invite
-          </button>
-        </div>
-      </div>
       
       {/* All Users Section */}
       <div>
