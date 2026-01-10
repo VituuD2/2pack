@@ -1,5 +1,5 @@
 'use client';
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { supabase } from '@/services/supabaseClient';
 import { db } from '@/services/db';
 import { Session } from '@supabase/supabase-js';
@@ -15,40 +15,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const isInitialMount = useRef(true); // Evita duplicidade no StrictMode
 
   useEffect(() => {
-    const initializeAuth = async () => {
+    const initialize = async () => {
       try {
+        // 1. Tenta pegar a sessão de forma limpa
         const { data: { session: initialSession } } = await supabase.auth.getSession();
-        setSession(initialSession);
+        
         if (initialSession) {
-          // Passamos o ID diretamente para evitar chamadas extras ao auth.getUser()
+          setSession(initialSession);
           const profile = await db.auth.getUserProfile(initialSession.user.id);
           setUserProfile(profile);
         }
-      } catch (error) {
-        console.error("Erro na inicialização:", error);
+      } catch (err) {
+        console.error("Erro ao inicializar auth:", err);
       } finally {
         setLoading(false);
       }
     };
 
-    initializeAuth();
+    if (isInitialMount.current) {
+      initialize();
+      isInitialMount.current = false;
+    }
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, currentSession) => {
-      setSession(currentSession);
-      try {
-        if (currentSession) {
-          const profile = await db.auth.getUserProfile(currentSession.user.id);
-          setUserProfile(profile);
-        } else {
-          setUserProfile(null);
-        }
-      } catch (e) {
-        console.error("Erro ao atualizar perfil no listener:", e);
-      } finally {
-        // ESSA LINHA É A QUE DESTRAVA O F5
-        setLoading(false); 
+    // 2. Listener para mudanças (Login/Logout/Refresh)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
+      // Se a sessão mudar, atualizamos tudo
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        setSession(currentSession);
+        const profile = await db.auth.getUserProfile(currentSession?.user.id);
+        setUserProfile(profile);
+        setLoading(false);
+      }
+      
+      if (event === 'SIGNED_OUT') {
+        setSession(null);
+        setUserProfile(null);
+        setLoading(false);
       }
     });
 

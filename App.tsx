@@ -9,7 +9,6 @@ import AdminPanel from '@/components/AdminPanel';
 import { LayoutDashboard, Box, Settings, LogOut, ScanLine, PackageSearch, MailPlus, ShieldCheck } from 'lucide-react';
 import { ViewState, Shipment, UserProfile } from '@/types';
 import { db } from '@/services/db';
-import { supabase } from '@/services/supabaseClient';
 import LoginScreen from '@/components/LoginScreen';
 import LoadingScreen  from '@/components/LoadingScreen';
 import { useAuth } from '@/hooks/useAuth';
