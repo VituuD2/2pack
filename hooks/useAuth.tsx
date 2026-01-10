@@ -17,15 +17,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Get initial session immediately
+    const initializeAuth = async () => {
+      try {
+        const { data: { session: initialSession } } = await supabase.auth.getSession();
+        setSession(initialSession);
+        
+        if (initialSession) {
+          const profile = await db.auth.getUserProfile(initialSession.user.id);
+          setUserProfile(profile);
+        }
+      } catch (error) {
+        console.error("Error initializing auth:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initializeAuth();
+
+    // Subscribe to auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event: AuthChangeEvent, currentSession: Session | null) => {
         console.log("Auth Event:", event);
         
-        // 1. Atualizamos a sessão imediatamente
         setSession(currentSession);
 
         try {
-          // 2. Se houver um usuário, tentamos buscar o perfil
           if (currentSession) {
             const profile = await db.auth.getUserProfile(currentSession.user.id);
             setUserProfile(profile);
@@ -33,11 +51,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setUserProfile(null);
           }
         } catch (error) {
-          console.error("Erro silencioso no AuthProvider:", error);
-        } finally {
-          // 3. REGRA DE OURO: Esta linha DESTRAVA a tela em qualquer situação:
-          // Logado, Não Logado ou Erro de Banco.
-          setLoading(false);
+          console.error("Error in auth state change:", error);
+          setUserProfile(null);
         }
       }
     );
