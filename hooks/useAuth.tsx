@@ -1,5 +1,5 @@
 'use client';
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { supabase } from '@/services/supabaseClient';
 import { db } from '@/services/db';
 import { Session, AuthChangeEvent } from '@supabase/supabase-js';
@@ -15,8 +15,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const initializingRef = useRef(false);
 
   useEffect(() => {
+    // Prevent double initialization
+    if (initializingRef.current) return;
+    initializingRef.current = true;
+
     let mounted = true;
 
     const initializeAuth = async () => {
@@ -40,7 +45,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (initialSession) {
           console.log('🔍 Fetching user profile for:', initialSession.user.id);
           
-          // Fetch profile with explicit error handling
           try {
             const profile = await db.auth.getUserProfile(initialSession.user.id);
             
@@ -55,7 +59,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
           } catch (profileError) {
             console.error('❌ Profile fetch failed:', profileError);
-            // Don't block auth if profile fails - user might need to create profile
             setUserProfile(null);
           }
         } else {
@@ -73,14 +76,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
-    initializeAuth();
-
-    // Subscribe to auth changes
+    // Subscribe to auth changes BEFORE initializing
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event: AuthChangeEvent, currentSession: Session | null) => {
         console.log('🔔 Auth Event:', event);
         
         if (!mounted) return;
+
+        // Skip the INITIAL_SESSION event as we handle it in initializeAuth
+        if (event === 'INITIAL_SESSION') {
+          console.log('⏭️ Skipping INITIAL_SESSION, already handled in initialization');
+          return;
+        }
         
         setSession(currentSession);
 
@@ -103,6 +110,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
     );
+
+    // Initialize after setting up subscription
+    initializeAuth();
 
     return () => {
       mounted = false;
