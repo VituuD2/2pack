@@ -15,14 +15,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const initializingRef = useRef(false);
+  const initialized = useRef(false);
 
   useEffect(() => {
     // Prevent double initialization
-    if (initializingRef.current) return;
-    initializingRef.current = true;
+    if (initialized.current) return;
+    initialized.current = true;
 
     let mounted = true;
+    let loadingTimeout: NodeJS.Timeout;
+
+    const fetchProfile = async (userId: string) => {
+      try {
+        console.log('📝 Fetching profile for user ID:', userId);
+        const profile = await db.auth.getUserProfile(userId);
+        
+        if (mounted) {
+          if (profile) {
+            console.log('✅ Profile loaded:', profile.email);
+            setUserProfile(profile);
+          } else {
+            console.warn('⚠️ No profile found for user');
+            setUserProfile(null);
+          }
+        }
+      } catch (error) {
+        console.error('❌ Profile fetch failed:', error);
+        if (mounted) {
+          setUserProfile(null);
+        }
+      }
+    };
 
     const initializeAuth = async () => {
       try {
@@ -43,31 +66,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(initialSession);
         
         if (initialSession) {
-          console.log('🔍 Fetching user profile for:', initialSession.user.id);
-          
-          try {
-            const profile = await db.auth.getUserProfile(initialSession.user.id);
-            
-            if (!mounted) return;
-            
-            if (profile) {
-              console.log('✅ Profile loaded:', profile.email);
-              setUserProfile(profile);
-            } else {
-              console.warn('⚠️ No profile found for user');
-              setUserProfile(null);
-            }
-          } catch (profileError) {
-            console.error('❌ Profile fetch failed:', profileError);
-            setUserProfile(null);
-          }
+          await fetchProfile(initialSession.user.id);
         } else {
           setUserProfile(null);
         }
       } catch (error) {
         console.error('❌ Auth initialization failed:', error);
-        setSession(null);
-        setUserProfile(null);
+        if (mounted) {
+          setSession(null);
+          setUserProfile(null);
+        }
       } finally {
         if (mounted) {
           console.log('✅ Auth initialization complete, setting loading = false');
@@ -76,49 +84,54 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
-    // Subscribe to auth changes BEFORE initializing
+    // Subscribe to auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event: AuthChangeEvent, currentSession: Session | null) => {
         console.log('🔔 Auth Event:', event);
         
         if (!mounted) return;
 
-        // Skip the INITIAL_SESSION event as we handle it in initializeAuth
-        if (event === 'INITIAL_SESSION') {
-          console.log('⏭️ Skipping INITIAL_SESSION, already handled in initialization');
-          return;
-        }
-        
+        // For any auth event, update session immediately
         setSession(currentSession);
 
+        // If we're still in the loading phase, let initializeAuth handle it
+        if (loading && (event === 'INITIAL_SESSION' || event === 'SIGNED_IN')) {
+          console.log('⏭️ Skipping event during initialization, will be handled by initializeAuth');
+          return;
+        }
+
+        // For post-initialization events, handle them
         if (currentSession) {
-          try {
-            const profile = await db.auth.getUserProfile(currentSession.user.id);
-            if (mounted) {
-              setUserProfile(profile);
-            }
-          } catch (error) {
-            console.error('❌ Profile fetch error in auth change:', error);
-            if (mounted) {
-              setUserProfile(null);
-            }
-          }
+          await fetchProfile(currentSession.user.id);
         } else {
-          if (mounted) {
-            setUserProfile(null);
-          }
+          setUserProfile(null);
+        }
+
+        // Ensure loading is false after any auth event (safety net)
+        if (loading) {
+          console.log('🔓 Setting loading = false from auth event');
+          setLoading(false);
         }
       }
     );
+
+    // Safety timeout - if loading is still true after 3 seconds, force it to false
+    loadingTimeout = setTimeout(() => {
+      if (mounted && loading) {
+        console.warn('⚠️ Loading timeout reached, forcing loading = false');
+        setLoading(false);
+      }
+    }, 3000);
 
     // Initialize after setting up subscription
     initializeAuth();
 
     return () => {
       mounted = false;
+      clearTimeout(loadingTimeout);
       subscription.unsubscribe();
     };
-  }, []);
+  }, []); // Empty dependency array - only run once
 
   return (
     <AuthContext.Provider value={{ session, userProfile, loading }}>
