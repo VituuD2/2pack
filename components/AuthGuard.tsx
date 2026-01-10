@@ -2,7 +2,7 @@
 
 import { useAuth } from '@/hooks/useAuth';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import LoadingScreen from './LoadingScreen';
 
 const publicRoutes = ['/login', '/forgot-password', '/reset-password'];
@@ -11,35 +11,57 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { session, loading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
-  const [isRedirecting, setIsRedirecting] = useState(false);
+  const hasRedirected = useRef(false);
 
   useEffect(() => {
-    if (loading) return;
+    console.log('🛡️ AuthGuard check:', { loading, hasSession: !!session, pathname });
+
+    if (loading) {
+      console.log('⏳ Still loading auth...');
+      return;
+    }
 
     const isPublicRoute = publicRoutes.includes(pathname);
 
+    // Reset redirect flag when we're on the correct route
+    if ((session && !isPublicRoute) || (!session && isPublicRoute)) {
+      hasRedirected.current = false;
+      return;
+    }
+
+    // Prevent multiple redirects
+    if (hasRedirected.current) {
+      console.log('🚫 Already redirected, skipping...');
+      return;
+    }
+
     // User not authenticated, trying to access protected route
     if (!session && !isPublicRoute) {
-      setIsRedirecting(true);
-      router.push('/login');
+      console.log('🔒 No session, redirecting to login');
+      hasRedirected.current = true;
+      router.replace('/login');
       return;
     }
 
-    // User authenticated, trying to access public route (login, etc)
+    // User authenticated, trying to access public route
     if (session && isPublicRoute) {
-      setIsRedirecting(true);
-      router.push('/');
+      console.log('✅ Has session, redirecting to dashboard');
+      hasRedirected.current = true;
+      router.replace('/');
       return;
     }
-
-    // Valid state, stop showing loading
-    setIsRedirecting(false);
   }, [session, loading, pathname, router]);
 
-  // Show loading screen while:
-  // 1. Auth is loading
-  // 2. We're in the process of redirecting
-  if (loading || isRedirecting) {
+  // Show loading only while auth is initializing
+  if (loading) {
+    return <LoadingScreen />;
+  }
+
+  // If we're on wrong route, show loading until redirect completes
+  const isPublicRoute = publicRoutes.includes(pathname);
+  const needsRedirect = (!session && !isPublicRoute) || (session && isPublicRoute);
+  
+  if (needsRedirect) {
     return <LoadingScreen />;
   }
 

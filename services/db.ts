@@ -14,7 +14,7 @@ export const db = {
         .from('products')
         .select('*')
         .eq('barcode', barcode)
-        .maybeSingle(); // Ajustado para evitar erro se não encontrar
+        .maybeSingle();
       
       if (error) throw error;
       return data;
@@ -81,23 +81,47 @@ export const db = {
   
   auth: {
     getUserProfile: async (userId?: string): Promise<UserProfile | null> => {
-      let id = userId;
-      
-      // Fallback: se não houver ID, busca no auth do Supabase
-      if (!id) {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return null;
-        id = user.id;
+      try {
+        let id = userId;
+        
+        // Fallback: se não houver ID, busca no auth do Supabase
+        if (!id) {
+          const { data: { user }, error: userError } = await supabase.auth.getUser();
+          if (userError || !user) {
+            console.error('Failed to get current user:', userError);
+            return null;
+          }
+          id = user.id;
+        }
+
+        console.log('📝 Fetching profile for user ID:', id);
+    
+        const { data, error } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('id', id)
+          .maybeSingle();
+        
+        if (error) {
+          console.error('❌ Profile fetch error:', error);
+          
+          // If it's an RLS error, provide more context
+          if (error.code === 'PGRST301' || error.message.includes('policy')) {
+            console.error('🔒 RLS Policy Error: User cannot access their profile. Check RLS policies.');
+          }
+          
+          return null;
+        }
+
+        if (!data) {
+          console.warn('⚠️ No profile found for user:', id);
+        }
+        
+        return data;
+      } catch (err) {
+        console.error('❌ Unexpected error in getUserProfile:', err);
+        return null;
       }
-  
-      const { data, error } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('id', id)
-        .maybeSingle(); // Retorna null em vez de erro se não houver perfil
-      
-      if (error) throw error;
-      return data;
     },
     signOut: () => supabase.auth.signOut()
   },
