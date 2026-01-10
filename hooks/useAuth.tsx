@@ -2,7 +2,8 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '@/services/supabaseClient';
 import { db } from '@/services/db';
-import { Session } from '@supabase/supabase-js';
+// Importamos AuthChangeEvent e Session para satisfazer o TypeScript
+import { Session, AuthChangeEvent } from '@supabase/supabase-js';
 import { UserProfile } from '@/types';
 
 const AuthContext = createContext<{ 
@@ -17,30 +18,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // 1. O listener captura o F5 através do evento INITIAL_SESSION
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
-      console.log("Auth Event:", event);
-      setSession(currentSession);
+    // Aplicamos a tipagem explícita nos parâmetros (event e currentSession)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event: AuthChangeEvent, currentSession: Session | null) => {
+        console.log("Auth Event:", event);
+        setSession(currentSession);
 
-      if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        if (currentSession) {
-          try {
-            // Buscamos o perfil. Se não achar, o maybeSingle evita o crash.
-            const profile = await db.auth.getUserProfile(currentSession.user.id);
-            setUserProfile(profile);
-          } catch (e) {
-            console.error("Erro ao carregar perfil:", e);
+        if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+          if (currentSession) {
+            try {
+              const profile = await db.auth.getUserProfile(currentSession.user.id);
+              setUserProfile(profile);
+            } catch (e) {
+              console.error("Erro ao carregar perfil:", e);
+            }
           }
+          setLoading(false);
         }
-        setLoading(false); // DESTRAVA A TELA
-      }
 
-      if (event === 'SIGNED_OUT') {
-        setSession(null);
-        setUserProfile(null);
-        setLoading(false);
+        if (event === 'SIGNED_OUT') {
+          setSession(null);
+          setUserProfile(null);
+          setLoading(false);
+        }
       }
-    });
+    );
 
     return () => subscription.unsubscribe();
   }, []);
