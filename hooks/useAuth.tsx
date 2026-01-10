@@ -1,11 +1,10 @@
 'use client';
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { supabase } from '@/services/supabaseClient'; // USE O MESMO CLIENTE SEMPRE
+import { supabase } from '@/services/supabaseClient'; // UNIFICADO: Use apenas este
 import { db } from '@/services/db';
 import { Session } from '@supabase/supabase-js';
 import { UserProfile } from '@/types';
 
-// Definimos o contexto com o UserProfile incluso para o App.tsx usar
 const AuthContext = createContext<{ 
   session: Session | null; 
   userProfile: UserProfile | null;
@@ -22,21 +21,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const { data: { session: initialSession } } = await supabase.auth.getSession();
         setSession(initialSession);
-
         if (initialSession) {
           const profile = await db.auth.getUserProfile();
           setUserProfile(profile);
         }
       } catch (error) {
-        console.error("Erro na inicialização de autenticação:", error);
+        console.error("Erro na inicialização:", error);
       } finally {
-        // GARANTE que o loading saia da tela, mesmo se o profile falhar
-        setLoading(false); 
+        setLoading(false); // SAI DO LOADING SEMPRE
       }
     };
 
     initializeAuth();
 
+    // Correção da sintaxe do subscription
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, currentSession) => {
       setSession(currentSession);
       if (currentSession) {
@@ -56,6 +54,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       {children}
     </AuthContext.Provider>
   );
-};
+}
 
 export const useAuth = () => useContext(AuthContext);
