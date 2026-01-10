@@ -75,7 +75,7 @@ export interface AppUser {
   };
 }
 
-export type ViewState = 'dashboard' | 'picking' | 'shipments' | 'products' | 'invites';
+export type ViewState = 'dashboard' | 'shipments' | 'picking' | 'products' | 'invites' | 'admin';
 
 export type ScanStatus = 'idle' | 'success' | 'error' | 'divergence';
 

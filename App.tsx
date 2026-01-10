@@ -5,7 +5,8 @@ import { ShipmentList } from '@/components/ShipmentList';
 import { PickingEngine } from '@/components/PickingEngine';
 import { ProductManager } from '@/components/ProductManager';
 import { InviteManager } from '@/components/InviteManager';
-import { LayoutDashboard, Box, Settings, LogOut, ScanLine, PackageSearch, MailPlus } from 'lucide-react';
+import AdminPanel from '@/components/AdminPanel';
+import { LayoutDashboard, Box, Settings, LogOut, ScanLine, PackageSearch, MailPlus, ShieldCheck } from 'lucide-react';
 import { ViewState, Shipment, UserProfile } from '@/types';
 import { db } from '@/services/db';
 import { supabase } from '@/services/supabaseClient';
@@ -93,7 +94,10 @@ const App: React.FC = () => {
           <NavButton view="shipments" icon={<Box size={20}/>} label="Inbound" />
           <NavButton view="products" icon={<PackageSearch size={20}/>} label="Products" />
           {userProfile?.role === 'admin' && (
-            <NavButton view="invites" icon={<MailPlus size={20}/>} label="Invites" />
+            <>
+              <NavButton view="invites" icon={<MailPlus size={20}/>} label="Invites" />
+              <NavButton view="admin" icon={<ShieldCheck size={20}/>} label="Admin" />
+            </>
           )}
         </nav>
 
@@ -116,6 +120,7 @@ const App: React.FC = () => {
                 {activeShipmentId ? `Shipment: ${activeShipment?.meli_id}` :
                  currentView === 'products' ? 'Manage your inventory master data' :
                  currentView === 'invites' ? 'Manage user access to your organization' :
+                 currentView === 'admin' ? 'Manage users and system settings' :
                  'Overview of your warehouse activity'}
              </p>
            </div>
@@ -132,10 +137,11 @@ const App: React.FC = () => {
         </header>
 
         <div className="flex-1 overflow-auto px-2 pb-4">
-           <Dashboard shipments={shipments} />
+           {currentView === 'dashboard' && <Dashboard shipments={shipments} />}
            {currentView === 'shipments' && <ShipmentList shipments={shipments} onSelect={handleShipmentSelect} />}
            {currentView === 'products' && <ProductManager />}
            {currentView === 'invites' && <InviteManager />}
+           {currentView === 'admin' && <AdminPanel />}
            {currentView === 'picking' && activeShipment && (
              <PickingEngine
                shipment={activeShipment}

@@ -1,15 +1,15 @@
-// context/AuthContext.tsx
 'use client';
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { supabase } from '@/services/supabaseClient'; // USE SEMPRE ESTE
+import { supabase } from '@/services/supabaseClient'; // USE O MESMO CLIENTE SEMPRE
 import { db } from '@/services/db';
 import { Session } from '@supabase/supabase-js';
 import { UserProfile } from '@/types';
 
+// Definimos o contexto com o UserProfile incluso para o App.tsx usar
 const AuthContext = createContext<{ 
   session: Session | null; 
   userProfile: UserProfile | null;
-  loading: boolean;
+  loading: boolean; 
 }>({ session: null, userProfile: null, loading: true });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -19,20 +19,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const initializeAuth = async () => {
-      // 1. Pega a sessão inicial
-      const { data: { session: initialSession } } = await supabase.auth.getSession();
-      setSession(initialSession);
+      try {
+        const { data: { session: initialSession } } = await supabase.auth.getSession();
+        setSession(initialSession);
 
-      if (initialSession) {
-        const profile = await db.auth.getUserProfile();
-        setUserProfile(profile);
+        if (initialSession) {
+          const profile = await db.auth.getUserProfile();
+          setUserProfile(profile);
+        }
+      } catch (error) {
+        console.error("Erro na inicialização de autenticação:", error);
+      } finally {
+        // GARANTE que o loading saia da tela, mesmo se o profile falhar
+        setLoading(false); 
       }
-      setLoading(false); // Libera o app apenas após ter certeza de tudo
     };
 
     initializeAuth();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, currentSession) => {
       setSession(currentSession);
       if (currentSession) {
         const profile = await db.auth.getUserProfile();
@@ -51,6 +56,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       {children}
     </AuthContext.Provider>
   );
-}
+};
 
 export const useAuth = () => useContext(AuthContext);
