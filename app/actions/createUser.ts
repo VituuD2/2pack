@@ -32,9 +32,9 @@ export async function createUser(email: string, password: string) {
       }
   }
 
-  // Inserir o perfil correspondente na tabela 'profiles'
+  // Inserir o perfil correspondente na tabela 'user_profiles'
   const { error: profileError } = await supabaseAdmin
-    .from('profiles')
+    .from('user_profiles') // << CORRIGIDO AQUI
     .insert([
       { 
         id: authData.user.id, 
