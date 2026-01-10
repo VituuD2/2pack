@@ -42,6 +42,7 @@ export interface ShipmentItem {
 
 export interface Shipment {
   id: string;
+  meli_id?: string;
   status: 'draft' | 'picking' | 'weighing' | 'completed' | 'pending';
   type: 'inbound' | 'outbound';
   tracking_code?: string;
@@ -66,11 +67,13 @@ export interface UserProfile {
 export interface Invite {
   id: string;
   email: string;
-  role: 'admin' | 'member';
+  role: 'admin' | 'operator';
   organization_id: string;
   invited_by: string;
   created_at: string;
 }
+
+export type UserInvite = Invite;
 
 export interface MeliAccount {
     organization_id: string;

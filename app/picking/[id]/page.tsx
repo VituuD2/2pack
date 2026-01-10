@@ -47,7 +47,7 @@ export default function PickingPage() {
            <div>
              <h2 className="text-2xl font-bold capitalize">Picking Session</h2>
              <p className="text-[var(--text-secondary)] text-sm">
-                Shipment: {shipment.meli_id}
+                Shipment: {shipment.id}
              </p>
            </div>
            <button 

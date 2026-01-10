@@ -1,5 +1,5 @@
 import { supabase } from '@/services/supabaseClient';
-import { UserProfile, Shipment, ShipmentItem, Product, Invite, MeliAccount } from '@/types';
+import { UserProfile, Shipment, ShipmentItem, Product, Invite, MeliAccount, Inventory } from '@/types';
 
 // Helper to get the current user's profile, including organization_id
 const getCurrentUserProfile = async (): Promise<UserProfile | null> => {
@@ -43,6 +43,16 @@ export const db = {
       const { data, error } = await supabase.from('products').select('*');
       if (error) throw error;
       return data as Product[];
+    },
+    getByBarcode: async (barcode: string): Promise<Product | null> => {
+      if (!barcode) return null;
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .eq('barcode', barcode)
+        .maybeSingle();
+      if (error) return null;
+      return data as Product;
     },
     update: async (product: Partial<Product> & { id: string }): Promise<void> => {
         const { error } = await supabase.from('products').update(product).eq('id', product.id);
@@ -131,7 +141,7 @@ export const db = {
   },
 
   invites: {
-    create: async (email: string, role: 'admin' | 'member') => {
+    create: async (email: string, role: 'admin' | 'operator') => {
         const profile = await db.auth.getUserProfile();
         if (!profile) throw new Error("User profile not found for organization context.");
         
@@ -142,7 +152,7 @@ export const db = {
             invited_by: profile.id
         });
     },
-    getForOrganization: async () => {
+    getAll: async () => {
         const profile = await db.auth.getUserProfile();
         if (!profile) return { data: [], error: null };
         
@@ -156,6 +166,48 @@ export const db = {
     }
   },
   
+  scans: {
+    log: async (productId: string) => {
+        const profile = await db.auth.getUserProfile();
+        if (!profile) throw new Error("User profile not found.");
+
+        const { error } = await supabase.from('scans').insert({
+            product_id: productId,
+            operator_id: profile.id
+        });
+        if (error) throw error;
+    }
+  },
+  
+  inventory: {
+    increment: async (productId: string, amount: number = 1) => {
+        const { data: existing, error: fetchError } = await supabase
+            .from('inventory')
+            .select('*')
+            .eq('product_id', productId)
+            .maybeSingle();
+
+        if (fetchError) throw fetchError;
+
+        if (existing) {
+            const { error } = await supabase
+                .from('inventory')
+                .update({ quantity: existing.quantity + amount, updated_at: new Date().toISOString() })
+                .eq('id', existing.id);
+            if (error) throw error;
+        } else {
+            const { error } = await supabase
+                .from('inventory')
+                .insert({
+                    product_id: productId,
+                    quantity: amount,
+                    updated_at: new Date().toISOString()
+                });
+            if (error) throw error;
+        }
+    }
+  },
+
   meli: {
     checkConnection: async (): Promise<boolean> => {
         const account = await getMeliAccount();
