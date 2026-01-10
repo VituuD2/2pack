@@ -5,6 +5,12 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get('code');
   const state = searchParams.get('state'); // You should use the state for CSRF protection
+  const error = searchParams.get('error');
+  const errorDescription = searchParams.get('error_description');
+
+  if (error) {
+      return new Response(`Meli Auth Error: ${error} - ${errorDescription}`, { status: 400 });
+  }
 
   if (!code) {
     return new Response('Missing authorization code', { status: 400 });
@@ -54,7 +60,7 @@ export async function GET(request: NextRequest) {
       .from('meli_accounts')
       .upsert({
         organization_id: organizationId,
-        meli_user_id: tokenData.user_id,
+        meli_user_id: tokenData.user_id.toString(),
         access_token: tokenData.access_token,
         refresh_token: tokenData.refresh_token,
         expires_at: new Date(Date.now() + tokenData.expires_in * 1000).toISOString(),

@@ -209,15 +209,16 @@ export const db = {
   },
 
   meli: {
-    getAuthUrl: () => {
+    getAuthUrl: (organizationId: string) => {
         const appId = process.env.NEXT_PUBLIC_MELI_APP_ID;
         const redirectUri = process.env.NEXT_PUBLIC_MELI_REDIRECT_URI;
         
-        if (!appId || appId === 'undefined' || !redirectUri) {
+        if (!appId || appId === 'undefined' || appId === 'null' || !redirectUri || redirectUri === 'undefined') {
             console.error("Missing NEXT_PUBLIC_MELI_APP_ID or NEXT_PUBLIC_MELI_REDIRECT_URI");
             return "#";
         }
-        const state = Math.random().toString(36).substring(7);
+        // Use organizationId as state to link the account in the callback
+        const state = organizationId;
         return `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
     },
     checkConnection: async (): Promise<boolean> => {
@@ -231,6 +232,9 @@ export const db = {
           console.log('No Meli account configured for this organization.');
           return;
       }
+
+      // TODO: Check if token is expired (expires_at) and refresh it. 
+      // Note: Token refresh requires client_secret and should be done server-side.
 
       const response = await fetch(`https://api.mercadolibre.com/users/${meliAccount.meli_user_id}/shipments/me?status=handling`, {
           headers: { 'Authorization': `Bearer ${meliAccount.access_token}` }
