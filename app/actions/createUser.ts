@@ -13,19 +13,45 @@ export async function createUser(email: string, password: string) {
     };
   }
 
-  const { data, error } = await supabaseAdmin.auth.admin.createUser({
+  // Criar o usuário na autenticação
+  const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
     email: email,
     password: password,
-    email_confirm: true, // Skips the confirmation email
+    email_confirm: true, // Pula o e-mail de confirmação
   });
 
-  if (error) {
+  if (authError) {
     return {
-      error: error.message,
+      error: `Error creating user: ${authError.message}`,
+    };
+  }
+
+  if (!authData.user) {
+      return {
+          error: 'User could not be created.'
+      }
+  }
+
+  // Inserir o perfil correspondente na tabela 'profiles'
+  const { error: profileError } = await supabaseAdmin
+    .from('profiles')
+    .insert([
+      { 
+        id: authData.user.id, 
+        email: email,
+        role: 'user' // Define uma role padrão
+      }
+    ]);
+
+  if (profileError) {
+    // Opcional: Tentar deletar o usuário da autenticação se a criação do perfil falhar
+    await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
+    return {
+      error: `Error creating profile: ${profileError.message}`,
     };
   }
 
   return {
-    data: data,
+    data: authData,
   };
 }
