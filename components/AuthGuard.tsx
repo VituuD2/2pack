@@ -12,22 +12,30 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const hasRedirected = useRef(false);
+  const isInitialMount = useRef(true);
 
   useEffect(() => {
     console.log('🛡️ AuthGuard check:', { loading, hasSession: !!session, pathname });
 
+    // Don't do anything while auth is loading
     if (loading) {
       console.log('⏳ Still loading auth...');
       return;
     }
 
-    const isPublicRoute = publicRoutes.includes(pathname);
-
-    // Reset redirect flag when we're on the correct route
-    if ((session && !isPublicRoute) || (!session && isPublicRoute)) {
-      hasRedirected.current = false;
-      return;
+    // Skip redirect logic on initial mount if we're already on the correct route
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      const isPublicRoute = publicRoutes.includes(pathname);
+      const isCorrectRoute = (session && !isPublicRoute) || (!session && isPublicRoute);
+      
+      if (isCorrectRoute) {
+        console.log('✅ Already on correct route, skipping redirect');
+        return;
+      }
     }
+
+    const isPublicRoute = publicRoutes.includes(pathname);
 
     // Prevent multiple redirects
     if (hasRedirected.current) {
@@ -57,11 +65,10 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     return <LoadingScreen />;
   }
 
-  // If we're on wrong route, show loading until redirect completes
   const isPublicRoute = publicRoutes.includes(pathname);
-  const needsRedirect = (!session && !isPublicRoute) || (session && isPublicRoute);
   
-  if (needsRedirect) {
+  // Show loading if we need to redirect
+  if ((!session && !isPublicRoute) || (session && isPublicRoute)) {
     return <LoadingScreen />;
   }
 
