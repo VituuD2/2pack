@@ -10,9 +10,9 @@ export async function GET(request: NextRequest) {
     return new Response('Missing authorization code', { status: 400 });
   }
 
-  const clientId = process.env.MELI_CLIENT_ID;
-  const clientSecret = process.env.MELI_CLIENT_SECRET;
-  const redirectUri = process.env.MELI_REDIRECT_URI;
+  const clientId = process.env.NEXT_PUBLIC_MELI_APP_ID;
+  const clientSecret = process.env.MELI_APP_SECRET;
+  const redirectUri = process.env.NEXT_PUBLIC_MELI_REDIRECT_URI;
 
   if (!clientId || !clientSecret || !redirectUri) {
       return new Response('Meli credentials are not configured in environment variables', { status: 500 });
@@ -65,8 +65,8 @@ export async function GET(request: NextRequest) {
       return new Response('Failed to save Meli account', { status: 500 });
     }
     
-    // Redirect user to the settings page with a success message
-    const redirectUrl = new URL('/settings?meli_auth=success', request.url);
+    // Redirect user to the inbound page with a success message
+    const redirectUrl = new URL('/inbound?meli_auth=success', request.url);
     return NextResponse.redirect(redirectUrl);
 
   } catch (error) {

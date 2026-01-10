@@ -209,6 +209,17 @@ export const db = {
   },
 
   meli: {
+    getAuthUrl: () => {
+        const appId = process.env.NEXT_PUBLIC_MELI_APP_ID;
+        const redirectUri = process.env.NEXT_PUBLIC_MELI_REDIRECT_URI;
+        
+        if (!appId || !redirectUri) {
+            console.error("Missing NEXT_PUBLIC_MELI_APP_ID or NEXT_PUBLIC_MELI_REDIRECT_URI");
+            return "#";
+        }
+        const state = Math.random().toString(36).substring(7);
+        return `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
+    },
     checkConnection: async (): Promise<boolean> => {
         const account = await getMeliAccount();
         return !!account;
