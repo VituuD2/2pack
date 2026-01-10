@@ -21,6 +21,7 @@ export async function GET(request: NextRequest) {
   const redirectUri = process.env.NEXT_PUBLIC_MELI_REDIRECT_URI;
 
   if (!clientId || !clientSecret || !redirectUri) {
+      console.error('Meli credentials missing:', { clientId: !!clientId, clientSecret: !!clientSecret, redirectUri: !!redirectUri });
       return new Response('Meli credentials are not configured in environment variables', { status: 500 });
   }
 

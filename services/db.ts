@@ -213,11 +213,11 @@ export const db = {
         const appId = process.env.NEXT_PUBLIC_MELI_APP_ID;
         const redirectUri = process.env.NEXT_PUBLIC_MELI_REDIRECT_URI;
         
-        if (!appId || String(appId).includes('undefined')) {
+        if (!appId || appId === 'undefined') {
             console.error("Missing NEXT_PUBLIC_MELI_APP_ID");
             return "#";
         }
-        if (!redirectUri || String(redirectUri).includes('undefined')) {
+        if (!redirectUri || redirectUri === 'undefined') {
             console.error("Missing NEXT_PUBLIC_MELI_REDIRECT_URI");
             return "#";
         }
