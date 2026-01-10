@@ -17,26 +17,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // O listener onAuthStateChange é a forma mais segura de gerenciar o ciclo de vida
+    // 1. O listener captura o F5 através do evento INITIAL_SESSION
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
-      console.log("Auth Event Triggered:", event);
+      console.log("Auth Event:", event);
       setSession(currentSession);
 
-      // Tratamos todos os estados onde o usuário está presente
       if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         if (currentSession) {
           try {
+            // Buscamos o perfil. Se não achar, o maybeSingle evita o crash.
             const profile = await db.auth.getUserProfile(currentSession.user.id);
             setUserProfile(profile);
           } catch (e) {
             console.error("Erro ao carregar perfil:", e);
           }
         }
-        // Destrava a tela idependente de erro no perfil
-        setLoading(false); 
+        setLoading(false); // DESTRAVA A TELA
       }
 
-      // Tratamos a saída ou falha de sessão
       if (event === 'SIGNED_OUT') {
         setSession(null);
         setUserProfile(null);
