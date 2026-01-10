@@ -14,10 +14,10 @@ export const db = {
         .from('products')
         .select('*')
         .eq('barcode', barcode)
-        .single();
+        .maybeSingle(); // Ajustado para evitar erro se não encontrar
       
-      if (error && error.code !== 'PGRST116') throw error;
-      return data || null;
+      if (error) throw error;
+      return data;
     },
 
     add: async (product: Omit<Product, 'id' | 'created_at'>): Promise<Product> => {
@@ -80,11 +80,10 @@ export const db = {
   },
   
   auth: {
-    // Agora aceita um userId opcional
     getUserProfile: async (userId?: string): Promise<UserProfile | null> => {
       let id = userId;
       
-      // Se não passamos o ID, buscamos o usuário atual (fallback)
+      // Fallback: se não houver ID, busca no auth do Supabase
       if (!id) {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return null;
@@ -95,12 +94,9 @@ export const db = {
         .from('user_profiles')
         .select('*')
         .eq('id', id)
-        .single();
+        .maybeSingle(); // Retorna null em vez de erro se não houver perfil
       
-      if (error) {
-        console.warn('Perfil não encontrado para o usuário:', id);
-        return null;
-      }
+      if (error) throw error;
       return data;
     },
     signOut: () => supabase.auth.signOut()
