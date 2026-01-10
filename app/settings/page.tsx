@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { User } from '@supabase/supabase-js';
 import { useNotification } from '@/components/NotificationContext';
 import { createUser } from '@/app/actions/createUser';
+import { db } from '@/services/db';
 
 const SettingsPage: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -13,17 +14,20 @@ const SettingsPage: React.FC = () => {
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserPassword, setNewUserPassword] = useState('');
   const [isCreatingUser, setIsCreatingUser] = useState(false);
+  const [isMeliConnected, setIsMeliConnected] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { showNotification } = useNotification();
 
   useEffect(() => {
-    const fetchUser = async () => {
+    const fetchUserAndMeliStatus = async () => {
       const { data, error } = await supabase.auth.getUser();
       if (!error && data) {
         setUser(data.user);
       }
+      const isConnected = await db.meli.checkConnection();
+      setIsMeliConnected(isConnected);
     };
-    fetchUser();
+    fetchUserAndMeliStatus();
   }, []);
 
   const handleAvatarChangeClick = () => {
@@ -88,6 +92,19 @@ const SettingsPage: React.FC = () => {
     }
     setIsCreatingUser(false);
   };
+  
+  const handleMeliConnect = async () => {
+    const userProfile = await db.auth.getUserProfile();
+    if (!userProfile) {
+        showNotification('Could not identify your organization. Please log in again.', 'error');
+        return;
+    }
+
+    const clientId = process.env.NEXT_PUBLIC_MELI_CLIENT_ID;
+    const redirectUri = new URL('/api/auth/meli/callback', window.location.origin).toString();
+    const authUrl = `https://auth.mercadolibre.com/authorization?response_type=code&client_id=${clientId}&redirect_uri=${redirectUri}&state=${userProfile.organization_id}`;
+    window.location.href = authUrl;
+  };
 
   return (
     <div className="p-6">
@@ -146,6 +163,22 @@ const SettingsPage: React.FC = () => {
               {isCreatingUser ? 'Creating...' : 'Create User'}
             </button>
           </form>
+        </GlassPanel>
+        
+        <GlassPanel>
+            <h2 className="text-xl font-semibold mb-4">Mercado Livre Integration</h2>
+            <p className="text-gray-400 mb-4">
+              {isMeliConnected
+                ? 'Your Mercado Livre account is connected.'
+                : 'Connect your Mercado Livre account to sync shipments and streamline your logistics.'}
+            </p>
+            <button 
+              onClick={handleMeliConnect} 
+              className="font-bold bg-yellow-400 text-black py-2 px-5 rounded-lg hover:brightness-110 transition-all"
+              disabled={isMeliConnected}
+            >
+              {isMeliConnected ? 'Connected' : 'Connect to Mercado Livre'}
+            </button>
         </GlassPanel>
       </div>
     </div>

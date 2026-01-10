@@ -18,10 +18,12 @@ const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<ViewState>('dashboard');
   const [shipments, setShipments] = useState<Shipment[]>([]);
   const [activeShipmentId, setActiveShipmentId] = useState<string | null>(null);
+  const [isMeliConnected, setIsMeliConnected] = useState(false);
 
   useEffect(() => {
     if (session) {
       db.shipments.getAll().then(setShipments);
+      db.meli.checkConnection().then(setIsMeliConnected);
     }
   }, [session]);
 
@@ -116,7 +118,7 @@ const App: React.FC = () => {
            <div>
              <h2 className="text-2xl font-bold capitalize">{activeShipmentId ? 'Picking Session' : currentView}</h2>
              <p className="text-[var(--text-secondary)] text-sm">
-                {activeShipmentId ? `Shipment: ${activeShipment?.meli_id}` :
+                {activeShipmentId ? `Shipment: ${activeShipment?.id}` :
                  currentView === 'products' ? 'Manage your inventory master data' :
                  currentView === 'invites' ? 'Manage user access to your organization' :
                  currentView === 'admin' ? 'Manage users and system settings' :
@@ -125,9 +127,9 @@ const App: React.FC = () => {
            </div>
 
            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 px-4 py-2 bg-black/30 rounded-full border border-[var(--border-color-medium)]">
-                 <div className="w-2 h-2 rounded-full bg-gray-500"></div>
-                 <span className="text-xs font-mono text-[var(--text-secondary)]">Meli API: Disconnected</span>
+              <div className={`flex items-center gap-2 px-4 py-2 bg-black/30 rounded-full border border-[var(--border-color-medium)]`}>
+                 <div className={`w-2 h-2 rounded-full ${isMeliConnected ? 'bg-green-500' : 'bg-gray-500'}`}></div>
+                 <span className="text-xs font-mono text-[var(--text-secondary)]">{isMeliConnected ? 'Meli API: Connected' : 'Meli API: Disconnected'}</span>
               </div>
               <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-[var(--aurora-1)] to-[var(--aurora-2)] flex items-center justify-center font-bold">
                  {userProfile?.email?.substring(0, 2).toUpperCase() || 'OP'}

@@ -37,16 +37,23 @@ export interface ShipmentItem {
   product: Product;
   expected_qty: number;
   scanned_qty: number;
+  shipment_id?: string;
 }
 
 export interface Shipment {
   id: string;
-  meli_id: string;
-  status: 'draft' | 'picking' | 'weighing' | 'completed';
+  status: 'draft' | 'picking' | 'weighing' | 'completed' | 'pending';
+  type: 'inbound' | 'outbound';
+  tracking_code?: string;
+  estimated_arrival?: Date;
   items: ShipmentItem[];
   box_tare_kg: number;
   created_at: string;
   organization_id?: string; // Added for multi-tenancy
+}
+
+export interface InboundShipment extends Shipment {
+    items: (ShipmentItem & { product: Product })[];
 }
 
 export interface UserProfile {
@@ -56,12 +63,21 @@ export interface UserProfile {
   email: string;
 }
 
-export interface UserInvite {
+export interface Invite {
   id: string;
   email: string;
+  role: 'admin' | 'member';
   organization_id: string;
   invited_by: string;
   created_at: string;
+}
+
+export interface MeliAccount {
+    organization_id: string;
+    meli_user_id: string;
+    access_token: string;
+    refresh_token: string;
+    expires_at: string; // timestamp with time zone
 }
 
 export interface AppUser {
@@ -84,3 +100,4 @@ export interface ScanResult {
   message: string;
   scannedSku?: string;
 }
+''
