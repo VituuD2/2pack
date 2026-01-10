@@ -80,17 +80,27 @@ export const db = {
   },
   
   auth: {
-    getUserProfile: async (): Promise<UserProfile | null> => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return null;
-
+    // Agora aceita um userId opcional
+    getUserProfile: async (userId?: string): Promise<UserProfile | null> => {
+      let id = userId;
+      
+      // Se não passamos o ID, buscamos o usuário atual (fallback)
+      if (!id) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return null;
+        id = user.id;
+      }
+  
       const { data, error } = await supabase
         .from('user_profiles')
         .select('*')
-        .eq('id', user.id)
+        .eq('id', id)
         .single();
       
-      if (error) return null;
+      if (error) {
+        console.warn('Perfil não encontrado para o usuário:', id);
+        return null;
+      }
       return data;
     },
     signOut: () => supabase.auth.signOut()

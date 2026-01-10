@@ -1,6 +1,6 @@
 'use client';
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { supabase } from '@/services/supabaseClient'; // UNIFICADO: Use apenas este
+import { supabase } from '@/services/supabaseClient';
 import { db } from '@/services/db';
 import { Session } from '@supabase/supabase-js';
 import { UserProfile } from '@/types';
@@ -22,28 +22,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const { data: { session: initialSession } } = await supabase.auth.getSession();
         setSession(initialSession);
         if (initialSession) {
-          const profile = await db.auth.getUserProfile();
+          // Passamos o ID diretamente para evitar chamadas extras ao auth.getUser()
+          const profile = await db.auth.getUserProfile(initialSession.user.id);
           setUserProfile(profile);
         }
       } catch (error) {
         console.error("Erro na inicialização:", error);
       } finally {
-        setLoading(false); // SAI DO LOADING SEMPRE
+        setLoading(false);
       }
     };
 
     initializeAuth();
 
-    // Correção da sintaxe do subscription
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, currentSession) => {
       setSession(currentSession);
-      if (currentSession) {
-        const profile = await db.auth.getUserProfile();
-        setUserProfile(profile);
-      } else {
-        setUserProfile(null);
+      try {
+        if (currentSession) {
+          const profile = await db.auth.getUserProfile(currentSession.user.id);
+          setUserProfile(profile);
+        } else {
+          setUserProfile(null);
+        }
+      } catch (e) {
+        console.error("Erro ao atualizar perfil no listener:", e);
+      } finally {
+        // ESSA LINHA É A QUE DESTRAVA O F5
+        setLoading(false); 
       }
-      setLoading(false);
     });
 
     return () => subscription.unsubscribe();
