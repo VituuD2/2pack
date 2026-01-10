@@ -1,77 +1,172 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useUsers } from '../hooks/useUsers';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '../lib/supabase';
+import { supabase } from '@/services/supabaseClient';
+import { GlassPanel } from './GlassPanel';
 
 const AdminPanel = () => {
-  const { users, loading } = useUsers();
-  const { session } = useAuth();
-  const currentUser = session?.user;
+  const { users, loading, error, refetch } = useUsers();
+  const { session, userProfile } = useAuth();
 
-  const handleGrantAdmin = async (userId: string) => {
-    if (!confirm('Are you sure you want to grant admin privileges to this user?')) {
+  // Check if current user is admin
+  const isAdmin = userProfile?.role === 'admin';
+
+  // If not admin, show access denied
+  if (!loading && !isAdmin) {
+    return (
+      <GlassPanel className="p-6">
+        <h2 className="text-xl font-bold mb-4 text-red-400">Access Denied</h2>
+        <p className="text-[var(--text-secondary)]">
+          You don't have permission to access the admin panel.
+        </p>
+      </GlassPanel>
+    );
+  }
+
+  const handleGrantAdmin = async (userId: string, userEmail: string) => {
+    if (!confirm(`Are you sure you want to grant admin privileges to ${userEmail}?`)) {
       return;
     }
 
-    const { error } = await supabase.rpc('grant_admin_role', { p_user_id: userId });
-    if (error) {
-      console.error('Error granting admin:', error);
-      alert(`Error granting admin role: ${error.message}`);
-    } else {
-      console.log('Granted admin to user:', userId);
-      alert('Admin role granted successfully.');
-      // Note: You might want to refresh the user list here to see the change reflected
+    try {
+      const { error } = await supabase.rpc('grant_admin_role', { p_user_id: userId });
+      
+      if (error) {
+        console.error('Error granting admin:', error);
+        alert(`Error granting admin role: ${error.message}`);
+      } else {
+        console.log('Granted admin to user:', userId);
+        alert('Admin role granted successfully.');
+        
+        // Refetch the user list to show updated roles
+        await refetch();
+      }
+    } catch (err: any) {
+      console.error('Unexpected error:', err);
+      alert(`Failed to grant admin role: ${err.message}`);
+    }
+  };
+
+  const handleRevokeAdmin = async (userId: string, userEmail: string) => {
+    if (!confirm(`Are you sure you want to revoke admin privileges from ${userEmail}?`)) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase.rpc('revoke_admin_role', { p_user_id: userId });
+      
+      if (error) {
+        console.error('Error revoking admin:', error);
+        alert(`Error revoking admin role: ${error.message}`);
+      } else {
+        console.log('Revoked admin from user:', userId);
+        alert('Admin role revoked successfully.');
+        
+        // Refetch the user list to show updated roles
+        await refetch();
+      }
+    } catch (err: any) {
+      console.error('Unexpected error:', err);
+      alert(`Failed to revoke admin role: ${err.message}`);
     }
   };
 
   return (
-    <div className="glass-panel p-6">
+    <GlassPanel className="p-6">
       <h2 className="text-xl font-bold mb-4">Admin Panel</h2>
+      
+      {/* Show error if any */}
+      {error && (
+        <div className="mb-4 p-4 bg-red-500/20 border border-red-500/50 rounded-lg text-red-300">
+          <p className="font-semibold">Error loading users:</p>
+          <p className="text-sm">{error}</p>
+        </div>
+      )}
       
       {/* All Users Section */}
       <div>
-        <h3 className="text-lg font-semibold mb-2">All Users</h3>
+        <h3 className="text-lg font-semibold mb-2">All Users in Your Organization</h3>
         {loading ? (
-          <p className="text-[var(--text-secondary)]">Loading users...</p>
+          <div className="flex items-center gap-3 text-[var(--text-secondary)] py-4">
+            <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+            <p>Loading users...</p>
+          </div>
+        ) : users.length === 0 ? (
+          <p className="text-[var(--text-secondary)] py-4">No users found in your organization.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead className="border-b border-[var(--border-color-medium)]">
                 <tr>
-                  <th className="p-2 font-semibold text-[var(--text-secondary)]">Email</th>
-                  <th className="p-2 font-semibold text-[var(--text-secondary)]">Last Sign In</th>
-                  <th className="p-2 font-semibold text-[var(--text-secondary)]">Role</th>
-                  <th className="p-2 font-semibold text-[var(--text-secondary)]">Actions</th>
+                  <th className="p-3 font-semibold text-[var(--text-secondary)]">Email</th>
+                  <th className="p-3 font-semibold text-[var(--text-secondary)]">Full Name</th>
+                  <th className="p-3 font-semibold text-[var(--text-secondary)]">Last Sign In</th>
+                  <th className="p-3 font-semibold text-[var(--text-secondary)]">Role</th>
+                  <th className="p-3 font-semibold text-[var(--text-secondary)]">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {users.map((user) => (
-                  <tr key={user.id} className="border-b border-[var(--border-color)]">
-                    <td className="p-2">{user.email}</td>
-                    <td className="p-2">{user.last_sign_in_at ? new Date(user.last_sign_in_at).toLocaleString() : 'Never'}</td>
-                    <td className="p-2">
-                      <span className={`px-2 py-1 rounded-full text-xs ${user.app_metadata?.roles?.includes('admin') ? 'bg-purple-500/20 text-purple-300' : 'bg-gray-500/20 text-gray-300'}`}>
-                        {user.app_metadata?.roles?.includes('admin') ? 'Admin' : 'User'}
-                      </span>
-                    </td>
-                    <td className="p-2">
-                      {currentUser && user.id !== currentUser.id && !user.app_metadata?.roles?.includes('admin') && (
-                        <button
-                          className="bg-[var(--button-secondary-bg)] hover:bg-white/20 text-white font-semibold py-1 px-3 rounded-md text-sm transition-colors"
-                          onClick={() => handleGrantAdmin(user.id)}
+                {users.map((user) => {
+                  const isUserAdmin = user.app_metadata?.roles?.includes('admin');
+                  const isCurrentUser = session?.user?.id === user.id;
+
+                  return (
+                    <tr key={user.id} className="border-b border-[var(--border-color)]">
+                      <td className="p-3">
+                        {user.email}
+                        {isCurrentUser && (
+                          <span className="ml-2 text-xs text-[var(--text-secondary)]">(You)</span>
+                        )}
+                      </td>
+                      <td className="p-3 text-[var(--text-secondary)]">
+                        {user.full_name || '—'}
+                      </td>
+                      <td className="p-3 text-[var(--text-secondary)]">
+                        {user.last_sign_in_at 
+                          ? new Date(user.last_sign_in_at).toLocaleString() 
+                          : 'Never'}
+                      </td>
+                      <td className="p-3">
+                        <span 
+                          className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            isUserAdmin 
+                              ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' 
+                              : 'bg-gray-500/20 text-gray-300 border border-gray-500/30'
+                          }`}
                         >
-                          Grant Admin
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                          {isUserAdmin ? 'Admin' : 'Operator'}
+                        </span>
+                      </td>
+                      <td className="p-3">
+                        {!isCurrentUser && (
+                          <div className="flex gap-2">
+                            {!isUserAdmin ? (
+                              <button
+                                className="bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 font-semibold py-1 px-3 rounded-md text-sm transition-colors border border-purple-500/30"
+                                onClick={() => handleGrantAdmin(user.id, user.email)}
+                              >
+                                Grant Admin
+                              </button>
+                            ) : (
+                              <button
+                                className="bg-red-500/20 hover:bg-red-500/30 text-red-300 font-semibold py-1 px-3 rounded-md text-sm transition-colors border border-red-500/30"
+                                onClick={() => handleRevokeAdmin(user.id, user.email)}
+                              >
+                                Revoke Admin
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
       </div>
-    </div>
+    </GlassPanel>
   );
 };
 
