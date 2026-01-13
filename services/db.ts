@@ -210,21 +210,14 @@ export const db = {
 
   meli: {
     getAuthUrl: (organizationId: string) => {
-      const appId = process.env.NEXT_PUBLIC_MELI_APP_ID;
-      const redirectUri = process.env.NEXT_PUBLIC_MELI_REDIRECT_URI;
-
-      if (!appId || appId === 'undefined') {
-        console.error("Missing NEXT_PUBLIC_MELI_APP_ID");
-        return "#";
-      }
-      if (!redirectUri || redirectUri === 'undefined') {
-        console.error("Missing NEXT_PUBLIC_MELI_REDIRECT_URI");
-        return "#";
-      }
-      // Use organizationId as state to link the account in the callback
-      const state = organizationId;
-      return `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
-    },
+    // FORCE o ID aqui para teste, pois o process.env está falhando no navegador
+    const appId = "8074300052363571"; 
+    const redirectUri = "https://2pack-pearl.vercel.app/api/auth/meli/callback";
+    
+    // Remova ou comente as verificações de env temporariamente
+    const state = organizationId;
+    return `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
+  },
     checkConnection: async (): Promise<boolean> => {
       const account = await getMeliAccount();
       return !!account;
