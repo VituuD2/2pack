@@ -292,5 +292,17 @@ export const db = {
         // await supabase.rpc('upsert_shipment_with_items', { shipment_data: newShipment, items_data: shipmentItems });
       }
     },
+
+    disconnect: async (): Promise<void> => {
+      const profile = await getCurrentUserProfile();
+      if (!profile) throw new Error("User profile not found.");
+
+      const { error } = await supabase
+        .from('meli_accounts')
+        .delete()
+        .eq('organization_id', profile.organization_id);
+
+      if (error) throw error;
+    },
   }
 };

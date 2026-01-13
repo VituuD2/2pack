@@ -93,6 +93,27 @@ const SettingsPage: React.FC = () => {
     setIsCreatingUser(false);
   };
   
+  const handleMeliDisconnect = async () => {
+    if (!confirm("Are you sure you want to disconnect your Mercado Livre account?")) return;
+    
+    try {
+      await db.meli.disconnect();
+      setIsMeliConnected(false);
+      showNotification('Disconnected from Mercado Livre.', 'success');
+    } catch (error: any) {
+      showNotification(error.message || 'Failed to disconnect.', 'error');
+    }
+  };
+
+  const handleMeliSyncTest = async () => {
+    try {
+      await db.meli.syncShipments();
+      showNotification('Connection verified & Sync started successfully!', 'success');
+    } catch (error: any) {
+      showNotification('Connection test failed: ' + error.message, 'error');
+    }
+  };
+
   const handleMeliConnect = async () => {
     const userProfile = await db.auth.getUserProfile();
     if (!userProfile) {
@@ -150,7 +171,7 @@ const SettingsPage: React.FC = () => {
               />
               <button
                 onClick={handleAvatarChangeClick}
-                className="font-bold bg-[var(--ios-blue)] text-white py-2 px-5 rounded-lg hover:brightness-110 transition-all"
+                className="px-5 py-2 rounded-lg font-medium transition-all duration-300 backdrop-blur-md bg-blue-500/10 border border-blue-500/20 text-blue-400 hover:bg-blue-500/20 hover:border-blue-500/50 hover:shadow-[0_0_15px_rgba(59,130,246,0.3)] disabled:opacity-50 disabled:cursor-not-allowed"
                 disabled={isUploading}
               >
                 {isUploading ? 'Uploading...' : 'Upload Image'}
@@ -179,7 +200,9 @@ const SettingsPage: React.FC = () => {
               className="w-full rounded-lg px-3 py-2 bg-[var(--control-bg)] border border-[var(--border-color-medium)] text-[var(--text-primary)] placeholder-[var(--text-secondary)] focus:ring-1 focus:ring-[var(--ios-blue)] focus:outline-none"
               required
             />
-            <button type="submit" className="font-bold bg-[var(--ios-blue)] text-white py-2 px-5 rounded-lg hover:brightness-110 transition-all" disabled={isCreatingUser}>
+            <button type="submit" 
+              className="px-5 py-2 rounded-lg font-medium transition-all duration-300 backdrop-blur-md bg-blue-500/10 border border-blue-500/20 text-blue-400 hover:bg-blue-500/20 hover:border-blue-500/50 hover:shadow-[0_0_15px_rgba(59,130,246,0.3)] disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={isCreatingUser}>
               {isCreatingUser ? 'Creating...' : 'Create User'}
             </button>
           </form>
@@ -192,13 +215,32 @@ const SettingsPage: React.FC = () => {
                 ? 'Your Mercado Livre account is connected.'
                 : 'Connect your Mercado Livre account to sync shipments and streamline your logistics.'}
             </p>
-            <button 
-              onClick={handleMeliConnect} 
-              className="font-bold bg-yellow-400 text-black py-2 px-5 rounded-lg hover:brightness-110 transition-all"
-              disabled={isMeliConnected}
-            >
-              {isMeliConnected ? 'Connected' : 'Connect to Mercado Livre'}
-            </button>
+            
+            <div className="flex gap-3">
+              {!isMeliConnected ? (
+                <button 
+                  onClick={handleMeliConnect} 
+                  className="px-5 py-2 rounded-lg font-medium transition-all duration-300 backdrop-blur-md bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 hover:bg-yellow-500/20 hover:border-yellow-500/50 hover:shadow-[0_0_15px_rgba(234,179,8,0.3)]"
+                >
+                  Connect to Mercado Livre
+                </button>
+              ) : (
+                <>
+                  <button 
+                    onClick={handleMeliSyncTest}
+                    className="px-5 py-2 rounded-lg font-medium transition-all duration-300 backdrop-blur-md bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 hover:bg-yellow-500/20 hover:border-yellow-500/50 hover:shadow-[0_0_15px_rgba(234,179,8,0.3)]"
+                  >
+                    Sync / Test Connection
+                  </button>
+                  <button 
+                    onClick={handleMeliDisconnect}
+                    className="px-5 py-2 rounded-lg font-medium transition-all duration-300 backdrop-blur-md bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 hover:border-red-500/50 hover:shadow-[0_0_15px_rgba(239,68,68,0.3)]"
+                  >
+                    Disconnect
+                  </button>
+                </>
+              )}
+            </div>
         </GlassPanel>
       </div>
     </div>
