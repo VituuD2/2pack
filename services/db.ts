@@ -236,6 +236,20 @@ export const db = {
       return !!account;
     },
 
+    getConnectionDetails: async () => {
+      const account = await getMeliAccount();
+      if (!account) return { isConnected: false };
+
+      // Opcional: Buscar info atualizada do usuário no Meli se necessário
+      // Por enquanto retornamos o que temos no banco
+      return { 
+        isConnected: true, 
+        sellerId: account.meli_user_id,
+        // Se tivermos salvo o nickname/nome, retornamos aqui. 
+        // Caso contrário, o front mostra apenas o ID ou "Conectado"
+      };
+    },
+
     syncShipments: async (): Promise<void> => {
       const profile = await getCurrentUserProfile();
       if (!profile) throw new Error("User profile not found.");
