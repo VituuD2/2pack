@@ -7,6 +7,7 @@ import { User } from '@supabase/supabase-js';
 import { useNotification } from '@/components/NotificationContext';
 import { createUser } from '@/app/actions/createUser';
 import { db } from '@/services/db';
+import { ConfirmationModal } from '@/components/ConfirmationModal';
 
 const SettingsPage: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -15,6 +16,7 @@ const SettingsPage: React.FC = () => {
   const [newUserPassword, setNewUserPassword] = useState('');
   const [isCreatingUser, setIsCreatingUser] = useState(false);
   const [isMeliConnected, setIsMeliConnected] = useState(false);
+  const [isDisconnectModalOpen, setIsDisconnectModalOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { showNotification } = useNotification();
 
@@ -94,8 +96,6 @@ const SettingsPage: React.FC = () => {
   };
   
   const handleMeliDisconnect = async () => {
-    if (!confirm("Are you sure you want to disconnect your Mercado Livre account?")) return;
-    
     try {
       await db.meli.disconnect();
       setIsMeliConnected(false);
@@ -149,6 +149,16 @@ const SettingsPage: React.FC = () => {
 
   return (
     <div className="p-6">
+      <ConfirmationModal
+        isOpen={isDisconnectModalOpen}
+        onClose={() => setIsDisconnectModalOpen(false)}
+        onConfirm={handleMeliDisconnect}
+        title="Disconnect Mercado Livre"
+        message="Are you sure you want to disconnect your Mercado Livre account? This will stop automatic shipment syncing."
+        confirmText="Disconnect"
+        isDestructive={true}
+      />
+      
       <h1 className="text-2xl font-bold mb-6">Settings</h1>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -233,7 +243,7 @@ const SettingsPage: React.FC = () => {
                     Sync / Test Connection
                   </button>
                   <button 
-                    onClick={handleMeliDisconnect}
+                    onClick={() => setIsDisconnectModalOpen(true)}
                     className="px-5 py-2 rounded-lg font-medium transition-all duration-300 backdrop-blur-md bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 hover:border-red-500/50 hover:shadow-[0_0_15px_rgba(239,68,68,0.3)]"
                   >
                     Disconnect

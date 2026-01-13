@@ -277,12 +277,18 @@ export const db = {
       const profile = await getCurrentUserProfile();
       if (!profile) throw new Error("User profile not found.");
 
-      const { error } = await supabase
-        .from('meli_accounts')
-        .delete()
-        .eq('organization_id', profile.organization_id);
+      const response = await fetch('/api/meli/disconnect', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ organizationId: profile.organization_id }),
+      });
 
-      if (error) throw error;
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to disconnect Meli account');
+      }
     },
   }
 };
