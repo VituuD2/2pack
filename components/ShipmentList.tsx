@@ -11,13 +11,6 @@ interface ShipmentListProps {
 export const ShipmentList: React.FC<ShipmentListProps> = ({ shipments, onSelect }) => {
   return (
     <div className="space-y-6">
-       <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold">Inbound Shipments</h2>
-          <button className="px-4 py-2 rounded-full bg-[var(--button-secondary-bg)] text-sm flex items-center gap-2 hover:bg-white/10 transition">
-             <Truck size={16} /> Sync Meli
-          </button>
-       </div>
-
        {shipments.length === 0 ? (
           <GlassPanel className="flex flex-col items-center justify-center py-20 text-center">
              <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mb-6">
