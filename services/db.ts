@@ -237,60 +237,25 @@ export const db = {
     },
 
     syncShipments: async (): Promise<void> => {
-      const meliAccount = await getMeliAccount();
-      if (!meliAccount) {
-        console.log('No Meli account configured for this organization.');
-        return;
-      }
+      const profile = await getCurrentUserProfile();
+      if (!profile) throw new Error("User profile not found.");
 
-      // TODO: Check if token is expired (expires_at) and refresh it. 
-      // Note: Token refresh requires client_secret and should be done server-side.
-
-      const response = await fetch(`https://api.mercadolibre.com/users/${meliAccount.meli_user_id}/shipments/me?status=handling`, {
-        headers: { 'Authorization': `Bearer ${meliAccount.access_token}` }
+      // Chama a API Route do Next.js (Server-side) para evitar erro de CORS
+      const response = await fetch('/api/meli/sync', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ organizationId: profile.organization_id }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to fetch shipments from Mercado Livre');
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to sync shipments');
       }
-
-      const { results: meliShipments } = await response.json();
-
-      if (!meliShipments || !Array.isArray(meliShipments)) return;
-
-      const profile = await db.auth.getUserProfile();
-      if (!profile) throw new Error("User profile not found for organization context.");
-
-      for (const meliShipment of meliShipments) {
-        // Map Meli items to our internal ShipmentItem structure
-        const shipmentItems: Omit<ShipmentItem, 'id' | 'product'>[] = meliShipment.order_items.map((item: any) => ({
-          sku: item.item.id, // Assuming Meli item_id is our SKU
-          expected_qty: item.quantity,
-          scanned_qty: 0, // Default to 0 on sync
-          shipment_id: meliShipment.id.toString()
-        }));
-
-        // Map Meli shipment to our internal Shipment structure
-        const newShipment: Omit<Shipment, 'created_at' | 'items'> = {
-          id: meliShipment.id.toString(),
-          status: 'pending',
-          type: 'inbound', // Or determine based on context
-          tracking_code: meliShipment.tracking_number,
-          estimated_arrival: new Date(meliShipment.shipping_option.estimated_delivery_time.date),
-          box_tare_kg: 0,
-          organization_id: profile.organization_id
-        };
-
-        console.log("Debug MeLi Config:", {
-          id: process.env.NEXT_PUBLIC_MELI_APP_ID,
-          uri: process.env.NEXT_PUBLIC_MELI_REDIRECT_URI
-        });
-
-        // Upsert shipment and its items in a transaction
-        // This part is complex and needs a robust transaction logic, possibly in a stored procedure.
-        console.log('Syncing shipment:', newShipment, shipmentItems);
-        // await supabase.rpc('upsert_shipment_with_items', { shipment_data: newShipment, items_data: shipmentItems });
-      }
+      
+      const result = await response.json();
+      console.log('Sync successful:', result);
     },
 
     disconnect: async (): Promise<void> => {
