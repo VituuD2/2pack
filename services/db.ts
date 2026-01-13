@@ -283,6 +283,7 @@ export const db = {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ organizationId: profile.organization_id }),
+        credentials: 'include',
       });
 
       if (!response.ok) {
