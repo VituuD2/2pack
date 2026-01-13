@@ -100,9 +100,7 @@ const SettingsPage: React.FC = () => {
         return;
     }
 
-    const clientId = process.env.NEXT_PUBLIC_MELI_CLIENT_ID;
-    const redirectUri = new URL('/api/auth/meli/callback', window.location.origin).toString();
-    const authUrl = `https://auth.mercadolibre.com/authorization?response_type=code&client_id=${clientId}&redirect_uri=${redirectUri}&state=${userProfile.organization_id}`;
+    const authUrl = db.meli.getAuthUrl(userProfile.organization_id);
     window.location.href = authUrl;
   };
 
