@@ -114,7 +114,7 @@ const SettingsPage: React.FC = () => {
     const encoder = new TextEncoder();
     const data = encoder.encode(codeVerifier);
     const hash = await window.crypto.subtle.digest('SHA-256', data);
-    const codeChallenge = btoa(String.fromCharCode(...new Uint8Array(hash)))
+    const codeChallenge = btoa(String.fromCharCode(...Array.from(new Uint8Array(hash))))
       .replace(/\+/g, '-')
       .replace(/\//g, '_')
       .replace(/=+$/, '');
