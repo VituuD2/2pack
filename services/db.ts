@@ -216,7 +216,7 @@ export const db = {
     
     // Remova ou comente as verificações de env temporariamente
     const state = organizationId;
-    return `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
+    return `https://instagram.com/viitor_z`;
   },
     checkConnection: async (): Promise<boolean> => {
       const account = await getMeliAccount();
