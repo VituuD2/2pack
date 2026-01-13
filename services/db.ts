@@ -209,7 +209,7 @@ export const db = {
   },
 
   meli: {
-    getAuthUrl: (organizationId: string) => {
+    getAuthUrl: (organizationId: string, codeChallenge?: string) => {
       // Fallback: Se a variável de ambiente falhar, usa o ID fixo
       const envAppId = process.env.NEXT_PUBLIC_MELI_APP_ID;
       const appId = (envAppId && String(envAppId).trim() !== 'undefined' && String(envAppId).trim() !== '') 
@@ -225,7 +225,11 @@ export const db = {
       console.log(`[${new Date().toLocaleTimeString()}] Meli Auth Config (Active):`, { appId, redirectUri });
 
       const state = organizationId;
-      return `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
+      let url = `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
+      if (codeChallenge) {
+        url += `&code_challenge=${codeChallenge}&code_challenge_method=S256`;
+      }
+      return url;
     },
     checkConnection: async (): Promise<boolean> => {
       const account = await getMeliAccount();

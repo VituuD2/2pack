@@ -100,7 +100,29 @@ const SettingsPage: React.FC = () => {
         return;
     }
 
-    const authUrl = db.meli.getAuthUrl(userProfile.organization_id);
+    // PKCE Generation
+    const generateRandomString = (length: number) => {
+      const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
+      let text = '';
+      for (let i = 0; i < length; i++) {
+        text += possible.charAt(Math.floor(Math.random() * possible.length));
+      }
+      return text;
+    };
+
+    const codeVerifier = generateRandomString(128);
+    const encoder = new TextEncoder();
+    const data = encoder.encode(codeVerifier);
+    const hash = await window.crypto.subtle.digest('SHA-256', data);
+    const codeChallenge = btoa(String.fromCharCode(...new Uint8Array(hash)))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+
+    // Store verifier in cookie for the callback route to access
+    document.cookie = `meli_code_verifier=${codeVerifier}; path=/; max-age=600; SameSite=Lax`;
+
+    const authUrl = db.meli.getAuthUrl(userProfile.organization_id, codeChallenge);
     window.location.href = authUrl;
   };
 

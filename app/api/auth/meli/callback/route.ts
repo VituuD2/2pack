@@ -20,6 +20,9 @@ export async function GET(request: NextRequest) {
   const clientSecret = process.env.MELI_APP_SECRET;
   const redirectUri = process.env.NEXT_PUBLIC_MELI_REDIRECT_URI;
 
+  // Retrieve PKCE code_verifier from cookie
+  const codeVerifier = request.cookies.get('meli_code_verifier')?.value;
+
   if (!clientId || !clientSecret || !redirectUri) {
     console.error('Meli credentials missing:', { clientId: !!clientId, clientSecret: !!clientSecret, redirectUri: !!redirectUri });
     return new Response('Meli credentials are not configured in environment variables', { status: 500 });
@@ -39,6 +42,7 @@ export async function GET(request: NextRequest) {
         client_secret: clientSecret, // Verifique se esta ENV está no painel da Vercel SEM o NEXT_PUBLIC_
         code: code,
         redirect_uri: redirectUri,
+        code_verifier: codeVerifier || '',
       }),
     });
 
