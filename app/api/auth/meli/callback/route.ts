@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
   const errorDescription = searchParams.get('error_description');
 
   if (error) {
-      return new Response(`Meli Auth Error: ${error} - ${errorDescription}`, { status: 400 });
+    return new Response(`Meli Auth Error: ${error} - ${errorDescription}`, { status: 400 });
   }
 
   if (!code) {
@@ -21,8 +21,8 @@ export async function GET(request: NextRequest) {
   const redirectUri = process.env.NEXT_PUBLIC_MELI_REDIRECT_URI;
 
   if (!clientId || !clientSecret || !redirectUri) {
-      console.error('Meli credentials missing:', { clientId: !!clientId, clientSecret: !!clientSecret, redirectUri: !!redirectUri });
-      return new Response('Meli credentials are not configured in environment variables', { status: 500 });
+    console.error('Meli credentials missing:', { clientId: !!clientId, clientSecret: !!clientSecret, redirectUri: !!redirectUri });
+    return new Response('Meli credentials are not configured in environment variables', { status: 500 });
   }
 
   try {
@@ -36,13 +36,19 @@ export async function GET(request: NextRequest) {
       body: new URLSearchParams({
         grant_type: 'authorization_code',
         client_id: clientId,
-        client_secret: clientSecret,
+        client_secret: clientSecret, // Verifique se esta ENV está no painel da Vercel SEM o NEXT_PUBLIC_
         code: code,
         redirect_uri: redirectUri,
       }),
     });
 
     const tokenData = await tokenResponse.json();
+
+    if (!tokenResponse.ok) {
+      // Isso vai te mostrar exatamente o que o MeLi reclamou nos logs da Vercel
+      console.error('MeLi Token Exchange Error:', tokenData);
+      return NextResponse.json(tokenData, { status: 400 });
+    }
 
     if (!tokenResponse.ok) {
       console.error('Failed to exchange token:', tokenData);
@@ -53,7 +59,7 @@ export async function GET(request: NextRequest) {
     const organizationId = state;
 
     if (!organizationId) {
-        return new Response('Missing organization_id from state parameter', { status: 400 });
+      return new Response('Missing organization_id from state parameter', { status: 400 });
     }
 
     // Save the token securely in your database using the admin client
@@ -71,7 +77,7 @@ export async function GET(request: NextRequest) {
       console.error('Database error:', dbError);
       return new Response('Failed to save Meli account', { status: 500 });
     }
-    
+
     // Redirect user to the inbound page with a success message
     const redirectUrl = new URL('/inbound?meli_auth=success', request.url);
     return NextResponse.redirect(redirectUrl);
