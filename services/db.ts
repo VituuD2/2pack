@@ -241,6 +241,7 @@ export const db = {
       if (!profile) throw new Error("User profile not found.");
 
       // Chama a API Route do Next.js (Server-side) para evitar erro de CORS
+      // Added credentials: 'include' to pass cookies (Supabase auth) to the server route
       const response = await fetch('/api/meli/sync', {
         method: 'POST',
         headers: {
