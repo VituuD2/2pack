@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     return new Response('Missing authorization code', { status: 400 });
   }
 
-  const clientId = process.env.NEXT_PUBLIC_MELI_APP_ID;
+  const clientId = "8074300052363571";
   const clientSecret = process.env.MELI_APP_SECRET;
   const redirectUri = process.env.NEXT_PUBLIC_MELI_REDIRECT_URI;
 
