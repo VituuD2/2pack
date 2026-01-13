@@ -210,22 +210,20 @@ export const db = {
 
   meli: {
     getAuthUrl: (organizationId: string) => {
-      const appId = process.env.NEXT_PUBLIC_MELI_APP_ID;
-      const redirectUri = process.env.NEXT_PUBLIC_MELI_REDIRECT_URI;
+      // Fallback: Se a variável de ambiente falhar, usa o ID fixo
+      const envAppId = process.env.NEXT_PUBLIC_MELI_APP_ID;
+      const appId = (envAppId && String(envAppId).trim() !== 'undefined' && String(envAppId).trim() !== '') 
+        ? String(envAppId).trim() 
+        : '8074300052363571'; 
 
-      // Log para depuração: verifique o console do navegador (F12) quando clicar no botão
-      console.log('Meli Auth Config:', { appId, redirectUri, env: process.env.NODE_ENV });
+      // Fallback: Se a URI de ambiente falhar, usa a URI fixa
+      const envRedirectUri = process.env.NEXT_PUBLIC_MELI_REDIRECT_URI;
+      const redirectUri = (envRedirectUri && String(envRedirectUri).trim() !== 'undefined' && String(envRedirectUri).trim() !== '')
+        ? String(envRedirectUri).trim()
+        : 'https://2pack-pearl.vercel.app/api/auth/meli/callback';
 
-      // Verificação robusta para undefined, null, string "undefined" ou vazia
-      if (!appId || String(appId).trim() === 'undefined' || String(appId).trim() === '') {
-        console.error("Missing or invalid NEXT_PUBLIC_MELI_APP_ID:", appId);
-        return "#";
-      }
-      if (!redirectUri || String(redirectUri).trim() === 'undefined') {
-        console.error("Missing or invalid NEXT_PUBLIC_MELI_REDIRECT_URI:", redirectUri);
-        return "#";
-      }
-      // Use organizationId as state to link the account in the callback
+      console.log(`[${new Date().toLocaleTimeString()}] Meli Auth Config (Active):`, { appId, redirectUri });
+
       const state = organizationId;
       return `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
     },
