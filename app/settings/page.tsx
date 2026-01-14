@@ -42,7 +42,26 @@ const SettingsPage: React.FC = () => {
       showNotification(error.message || 'Failed to disconnect.', 'error');
     }
   };
-  
+
+  const handleMeliConnect = async () => {
+    const profile = await db.auth.getUserProfile();
+    if (!profile) {
+      showNotification('Please log in first', 'error');
+      return;
+    }
+    const authUrl = db.meli.getAuthUrl(profile.organization_id);
+    window.location.href = authUrl;
+  };
+
+  const handleMeliSyncTest = async () => {
+    try {
+      await db.meli.syncShipments();
+      showNotification('Sync successful!', 'success');
+    } catch (error: any) {
+      showNotification(error.message || 'Sync failed', 'error');
+    }
+  };
+
   // ... existing functions ...
 
   return (
@@ -136,7 +155,6 @@ const SettingsPage: React.FC = () => {
               )}
             </div>
         </GlassPanel>
-      </div>
     </div>
   );
 };
