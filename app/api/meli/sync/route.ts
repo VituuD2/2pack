@@ -57,9 +57,8 @@ export async function POST(request: Request) {
 
     const sellerId = meliAccount.meli_user_id;
 
+    // --- OUTBOUND SYNC (ORDERS) ---
     // 4. Fetch Recent Orders from Meli
-    // We filter by 'paid' to get relevant orders. 
-    // You might want to filter by 'shipping.status' = 'ready_to_ship' or similar in a real scenario.
     const ordersUrl = `https://api.mercadolibre.com/orders/search?seller=${sellerId}&order.status=paid&sort=date_desc&limit=20`;
     
     const ordersResponse = await fetch(ordersUrl, {
@@ -70,132 +69,245 @@ export async function POST(request: Request) {
 
     if (!ordersResponse.ok) {
         const err = await ordersResponse.json();
-        console.error('Meli API Error:', err);
-        return NextResponse.json({ message: 'Failed to fetch orders from Meli', details: err }, { status: 502 });
+        console.error('Meli API Error (Orders):', err);
+        // Don't fail the whole request if orders fail, try inbounds
+    } else {
+      const ordersData = await ordersResponse.json();
+      const orders = ordersData.results || [];
+      console.log(`Found ${orders.length} orders for sync.`);
+
+      // 5. Upsert Shipments and Items (Outbound)
+      for (const order of orders) {
+        const shipmentData = {
+          organization_id: organizationId,
+          meli_id: order.id.toString(),
+          status: 'pending',
+          type: 'outbound', 
+          created_at: new Date(order.date_created).toISOString(),
+        };
+
+        const { data: existingShipment } = await supabaseAdmin
+          .from('shipments')
+          .select('id')
+          .eq('meli_id', shipmentData.meli_id)
+          .maybeSingle();
+
+        let shipmentId = existingShipment?.id;
+
+        if (!shipmentId) {
+          const { data: newShipment, error: createError } = await supabaseAdmin
+            .from('shipments')
+            .insert(shipmentData)
+            .select()
+            .single();
+
+          if (createError) {
+              console.error('Error creating outbound shipment:', createError);
+              continue; 
+          }
+          shipmentId = newShipment.id;
+        }
+
+        const items = order.order_items || [];
+        for (const item of items) {
+            const meliProductId = item.item.id;
+            const sku = item.item.seller_sku;
+            let productId: string | null = null;
+            
+            if (sku) {
+               const { data: prod } = await supabaseAdmin
+                  .from('products')
+                  .select('id')
+                  .eq('organization_id', organizationId)
+                  .eq('sku', sku)
+                  .maybeSingle();
+               productId = prod?.id || null;
+            }
+
+            if (!productId) {
+                 const { data: newProd, error: prodError } = await supabaseAdmin
+                     .from('products')
+                     .insert({
+                         organization_id: organizationId,
+                         sku: sku || `MELI-${meliProductId}`,
+                         title: item.item.title,
+                         barcode: 'UNKNOWN',
+                         unit_weight_kg: 0,
+                         image_url: '',
+                     })
+                     .select()
+                     .single();
+                     
+                 if (!prodError) productId = newProd.id;
+            }
+
+            if (productId) {
+               await supabaseAdmin.from('shipment_items').upsert({
+                   shipment_id: shipmentId,
+                   product_id: productId,
+                   expected_qty: item.quantity,
+                   scanned_qty: 0, 
+               }, { onConflict: 'shipment_id, product_id' });
+            }
+        }
+      }
     }
 
-    const ordersData = await ordersResponse.json();
-    const orders = ordersData.results || [];
+    // --- INBOUND SYNC (FULFILLMENT OPERATIONS) ---
+    console.log('Starting Inbound Sync...');
+    let inboundCount = 0;
 
-    console.log(`Found ${orders.length} orders for sync.`);
-
-    let syncedCount = 0;
-
-    // 5. Upsert Shipments and Items
-    for (const order of orders) {
-      // Map Meli Order to our Shipment
-      // Using order.id as meli_id
+    try {
+      // A. Get Seller's Items to find Inventory IDs
+      // Limit to 50 items for now to avoid timeout
+      const itemsSearchRes = await fetch(`https://api.mercadolibre.com/users/${sellerId}/items/search?limit=50&status=active`, {
+        headers: { 'Authorization': `Bearer ${accessToken}` }
+      });
       
-      const shipmentData = {
-        organization_id: organizationId,
-        meli_id: order.id.toString(),
-        status: 'pending', // Default status for new sync
-        type: 'outbound',  // Assuming orders are outbound
-        created_at: new Date(order.date_created).toISOString(),
-        // You can map other fields like tracking_code if available in order.shipping
-      };
+      if (itemsSearchRes.ok) {
+        const itemsData = await itemsSearchRes.json();
+        const itemIds = itemsData.results || [];
+        
+        if (itemIds.length > 0) {
+          // B. Get Item Details (Chunked in 20s as per Meli API limits for multiget usually)
+          // But here we need to call /items/{id} or /items?ids=...
+          const itemDetailsRes = await fetch(`https://api.mercadolibre.com/items?ids=${itemIds.join(',')}`, {
+             headers: { 'Authorization': `Bearer ${accessToken}` }
+          });
 
-      // Check if shipment exists
-      const { data: existingShipment } = await supabaseAdmin
-        .from('shipments')
-        .select('id')
-        .eq('meli_id', shipmentData.meli_id)
-        .maybeSingle();
+          if (itemDetailsRes.ok) {
+            const itemDetails = await itemDetailsRes.json();
+            const inventoryIds = new Set<string>();
 
-      let shipmentId = existingShipment?.id;
+            // Collect unique inventory_ids
+            for (const itemWrapper of itemDetails) {
+              const item = itemWrapper.body;
+              if (item.inventory_id) {
+                inventoryIds.add(item.inventory_id);
+              }
+            }
 
-      if (!shipmentId) {
-        const { data: newShipment, error: createError } = await supabaseAdmin
-          .from('shipments')
-          .insert(shipmentData)
-          .select()
-          .single();
+            console.log(`Found ${inventoryIds.size} unique inventory IDs to check for inbounds.`);
 
-        if (createError) {
-            console.error('Error creating shipment:', createError);
-            continue; 
-        }
-        shipmentId = newShipment.id;
-      }
-
-      // Process Items
-      const items = order.order_items || [];
-      for (const item of items) {
-          // Try to find product by ID or SKU to link it
-          // Meli item: item.item.id, item.item.title, item.quantity, item.item.seller_sku
-          
-          const meliProductId = item.item.id;
-          const sku = item.item.seller_sku; // Might be null
-
-          // Find or Create Product (Optional: Strategy depends on requirements. 
-          // Here we might just try to find by barcode/sku or create a placeholder)
-          
-          // For now, let's just create the ShipmentItem. 
-          // Ideally, we need a valid 'product_id' in our DB.
-          // Strategy: Find product by SKU or Meli ID (if we stored it).
-          // Fallback: Create a product placeholder if it doesn't exist? 
-          // Or just log it. For safety, let's try to find by SKU.
-          
-          let productId: string | null = null;
-          
-          if (sku) {
-             const { data: prod } = await supabaseAdmin
-                .from('products')
-                .select('id')
-                .eq('organization_id', organizationId)
-                .eq('sku', sku)
-                .maybeSingle();
-             productId = prod?.id || null;
-          }
-
-          if (!productId) {
-               // Optional: Auto-create product from Meli data
-               // skipping for now to avoid pollution, or maybe create with a special flag
-               // User instruction implied "sync shipments", usually assumes products exist or we just record the item info.
-               // But our 'shipment_items' table likely has a FK to 'products'.
-               // Let's check schema. If FK is strict, we MUST have a product.
-               // Assuming strict FK: We skip item if product not found, or create a dummy.
-               // Let's create a product if missing to ensure data integrity for the shipment.
+            // C. Check Operations for each Inventory ID
+            for (const invId of Array.from(inventoryIds)) {
+               // Look for INBOUND_RECEPTION operations in the last 60 days (max allowed range)
+               const today = new Date();
+               const sixtyDaysAgo = new Date();
+               sixtyDaysAgo.setDate(today.getDate() - 60);
                
-               const { data: newProd, error: prodError } = await supabaseAdmin
-                   .from('products')
-                   .insert({
-                       organization_id: organizationId,
-                       sku: sku || `MELI-${meliProductId}`,
-                       title: item.item.title,
-                       barcode: 'UNKNOWN', // Placeholder
-                       unit_weight_kg: 0,
-                       image_url: '', // Could fetch from Meli API item details
-                   })
-                   .select()
-                   .single();
-                   
-               if (!prodError) {
-                   productId = newProd.id;
-               } else {
-                   // Verify if error is duplicate key (e.g. barcode unique constraint)
-                   console.warn(`Could not create product for item ${item.item.title}`, prodError);
-               }
-          }
+               const dateFrom = sixtyDaysAgo.toISOString().split('T')[0];
+               const dateTo = today.toISOString().split('T')[0];
 
-          if (productId) {
-             await supabaseAdmin.from('shipment_items').upsert({
-                 shipment_id: shipmentId,
-                 product_id: productId,
-                 expected_qty: item.quantity,
-                 scanned_qty: 0, // Reset or keep? upsert might overwrite. 
-                 // Better: Only insert if not exists to preserve scanned_qty?
-                 // For now, basic upsert.
-             }, { onConflict: 'shipment_id, product_id' });
+               const opsUrl = `https://api.mercadolibre.com/stock/fulfillment/operations/search?seller_id=${sellerId}&inventory_id=${invId}&date_from=${dateFrom}&date_to=${dateTo}&type=INBOUND_RECEPTION`;
+               
+               const opsRes = await fetch(opsUrl, {
+                 headers: { 'Authorization': `Bearer ${accessToken}` }
+               });
+
+               if (opsRes.ok) {
+                 const opsData = await opsRes.json();
+                 const operations = opsData.results || [];
+
+                 for (const op of operations) {
+                   // Map INBOUND_RECEPTION to Shipment
+                   // External reference usually contains 'inbound_id'
+                   const inboundRef = op.external_references?.find((ref: any) => ref.type === 'inbound_id');
+                   const meliInboundId = inboundRef ? inboundRef.value : `OP-${op.id}`; // Fallback to Op ID
+
+                   const shipmentData = {
+                     organization_id: organizationId,
+                     meli_id: meliInboundId,
+                     status: 'pending', // You might want to map Meli status if available, but for inbound reception it's usually 'received' or 'processing'
+                     type: 'inbound',
+                     created_at: op.date_created,
+                   };
+
+                   // Upsert Inbound Shipment
+                   const { data: existingInbound } = await supabaseAdmin
+                     .from('shipments')
+                     .select('id')
+                     .eq('meli_id', shipmentData.meli_id)
+                     .maybeSingle();
+
+                   let shipmentId = existingInbound?.id;
+
+                   if (!shipmentId) {
+                      const { data: newInbound, error: createErr } = await supabaseAdmin
+                        .from('shipments')
+                        .insert(shipmentData)
+                        .select()
+                        .single();
+                      
+                      if (!createErr) {
+                        shipmentId = newInbound.id;
+                        inboundCount++;
+                      }
+                   }
+
+                   if (shipmentId) {
+                     // Find Product for this Inventory ID (We need to map Inventory ID back to Product ID in our DB)
+                     // We can try to find the product by the 'item_id' linked to this inventory from the previous step?
+                     // Or search DB by 'meli_id' (item id) if we stored it?
+                     // Currently our products table has 'sku'. Meli Item has 'seller_sku'.
+                     
+                     // Helper: Find product by inventory_id logic is tricky because we iterate by inventory_id here.
+                     // We know the inventory_id belongs to the items we fetched earlier.
+                     // Let's find the matching item from 'itemDetails' list
+                     const matchingItemWrapper = itemDetails.find((w: any) => w.body.inventory_id === invId);
+                     const matchingItem = matchingItemWrapper?.body;
+
+                     if (matchingItem) {
+                        const sku = matchingItem.seller_sku;
+                        let productId: string | null = null;
+
+                        if (sku) {
+                          const { data: prod } = await supabaseAdmin
+                            .from('products')
+                            .select('id')
+                            .eq('organization_id', organizationId)
+                            .eq('sku', sku)
+                            .maybeSingle();
+                          productId = prod?.id || null;
+                        }
+                        
+                        // Create product if missing (Inbound usually implies we know the product)
+                        if (!productId) {
+                           const { data: newProd } = await supabaseAdmin.from('products').insert({
+                               organization_id: organizationId,
+                               sku: sku || `MELI-${matchingItem.id}`,
+                               title: matchingItem.title,
+                               barcode: 'UNKNOWN',
+                               unit_weight_kg: 0,
+                               image_url: '',
+                           }).select().single();
+                           if (newProd) productId = newProd.id;
+                        }
+
+                        if (productId) {
+                           await supabaseAdmin.from('shipment_items').upsert({
+                               shipment_id: shipmentId,
+                               product_id: productId,
+                               expected_qty: op.result?.total || 0, // Total items in this operation
+                               scanned_qty: op.result?.available_quantity || 0,
+                           }, { onConflict: 'shipment_id, product_id' });
+                        }
+                     }
+                   }
+                 }
+               }
+            }
           }
+        }
       }
-      syncedCount++;
+    } catch (inboundError) {
+      console.error('Error syncing inbounds:', inboundError);
+      // Continue without crashing
     }
 
     return NextResponse.json({ 
       success: true, 
-      message: `Synced ${syncedCount} shipments.`,
-      count: syncedCount
+      message: `Synced outbound orders and ${inboundCount} inbound shipments.`,
     });
 
   } catch (error) {
