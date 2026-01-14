@@ -142,9 +142,9 @@ const SettingsPage: React.FC = () => {
 
       <div className="space-y-6">
         <GlassPanel>
-          <h2 className="text-xl font-semibold mb-4">Create New User</h2>
+          <h2 className="text-xl font-semibold mb-4">Create App User</h2>
           <p className="text-gray-400 mb-4">
-            Add a new user to your organization.
+            Add a new user to your organization (for accessing this app).
           </p>
           <div className="space-y-4">
             <div>
@@ -184,30 +184,24 @@ const SettingsPage: React.FC = () => {
                 ? 'Your Mercado Livre account is connected.'
                 : 'Connect your Mercado Livre account to sync shipments and streamline your logistics.'}
             </p>
-            
+
             <div className="flex gap-3 flex-wrap">
               {!isMeliConnected ? (
-                <button 
-                  onClick={handleMeliConnect} 
+                <button
+                  onClick={handleMeliConnect}
                   className="px-5 py-2 rounded-lg font-medium transition-all duration-300 backdrop-blur-md bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 hover:bg-yellow-500/20 hover:border-yellow-500/50 hover:shadow-[0_0_15px_rgba(234,179,8,0.3)]"
                 >
                   Connect to Mercado Livre
                 </button>
               ) : (
                 <>
-                  <button 
+                  <button
                     onClick={handleMeliSyncTest}
                     className="px-5 py-2 rounded-lg font-medium transition-all duration-300 backdrop-blur-md bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 hover:bg-yellow-500/20 hover:border-yellow-500/50 hover:shadow-[0_0_15px_rgba(234,179,8,0.3)]"
                   >
                     Sync / Test Connection
                   </button>
-                  <button 
-                    onClick={handleCreateTestUser}
-                    className="px-5 py-2 rounded-lg font-medium transition-all duration-300 backdrop-blur-md bg-purple-500/10 border border-purple-500/20 text-purple-400 hover:bg-purple-500/20 hover:border-purple-500/50 hover:shadow-[0_0_15px_rgba(168,85,247,0.3)]"
-                  >
-                    Create Test User
-                  </button>
-                  <button 
+                  <button
                     onClick={() => setIsDisconnectModalOpen(true)}
                     className="px-5 py-2 rounded-lg font-medium transition-all duration-300 backdrop-blur-md bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 hover:border-red-500/50 hover:shadow-[0_0_15px_rgba(239,68,68,0.3)]"
                   >
@@ -216,6 +210,25 @@ const SettingsPage: React.FC = () => {
                 </>
               )}
             </div>
+
+            {isMeliConnected && (
+              <div className="mt-6 pt-6 border-t border-gray-700">
+                <h3 className="text-lg font-semibold mb-2">Meli Test Users</h3>
+                <p className="text-gray-400 text-sm mb-4">
+                  Create test users for Mercado Livre sandbox testing. These are temporary accounts
+                  provided by Meli API for development (max 10 users, expire after 60 days of inactivity).
+                </p>
+                <button
+                  onClick={handleCreateTestUser}
+                  className="px-5 py-2 rounded-lg font-medium transition-all duration-300 backdrop-blur-md bg-purple-500/10 border border-purple-500/20 text-purple-400 hover:bg-purple-500/20 hover:border-purple-500/50 hover:shadow-[0_0_15px_rgba(168,85,247,0.3)]"
+                >
+                  Create Meli Test User
+                </button>
+                <p className="text-gray-500 text-xs mt-2">
+                  You'll receive an ID, nickname, and password. Save them immediately - they cannot be recovered!
+                </p>
+              </div>
+            )}
         </GlassPanel>
       </div>
     </div>
