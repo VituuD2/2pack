@@ -29,6 +29,20 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    // Build token request params
+    const tokenParams: Record<string, string> = {
+      grant_type: 'authorization_code',
+      client_id: clientId,
+      client_secret: clientSecret,
+      code: code,
+      redirect_uri: redirectUri,
+    };
+
+    // Only include code_verifier if PKCE was used (cookie exists)
+    if (codeVerifier) {
+      tokenParams.code_verifier = codeVerifier;
+    }
+
     // Exchange the authorization code for an access token
     const tokenResponse = await fetch('https://api.mercadolibre.com/oauth/token', {
       method: 'POST',
@@ -36,14 +50,7 @@ export async function GET(request: NextRequest) {
         'Content-Type': 'application/x-www-form-urlencoded',
         'Accept': 'application/json'
       },
-      body: new URLSearchParams({
-        grant_type: 'authorization_code',
-        client_id: clientId,
-        client_secret: clientSecret, // Verifique se esta ENV está no painel da Vercel SEM o NEXT_PUBLIC_
-        code: code,
-        redirect_uri: redirectUri,
-        code_verifier: codeVerifier || '',
-      }),
+      body: new URLSearchParams(tokenParams),
     });
 
     const tokenData = await tokenResponse.json();

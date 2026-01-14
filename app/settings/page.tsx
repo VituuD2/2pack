@@ -1,24 +1,35 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { GlassPanel } from '@/components/GlassPanel';
-import { supabase } from '@/lib/supabase';
-import { User } from '@supabase/supabase-js';
 import { useNotification } from '@/components/NotificationContext';
-import { createUser } from '@/app/actions/createUser';
 import { db } from '@/services/db';
 import { ConfirmationModal } from '@/components/ConfirmationModal';
 
+// PKCE helper functions
+const generateCodeVerifier = (): string => {
+  const array = new Uint8Array(32);
+  crypto.getRandomValues(array);
+  return Array.from(array, (byte) => byte.toString(16).padStart(2, '0')).join('');
+};
+
+const generateCodeChallenge = async (verifier: string): Promise<string> => {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(verifier);
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  const bytes = new Uint8Array(digest);
+  let binary = '';
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  const base64 = btoa(binary);
+  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+};
+
 const SettingsPage: React.FC = () => {
-  const [user, setUser] = useState<User | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const [newUserEmail, setNewUserEmail] = useState('');
-  const [newUserPassword, setNewUserPassword] = useState('');
-  const [isCreatingUser, setIsCreatingUser] = useState(false);
   const [isMeliConnected, setIsMeliConnected] = useState(false);
   const [isDisconnectModalOpen, setIsDisconnectModalOpen] = useState(false);
   const [testUser, setTestUser] = useState<any>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const { showNotification } = useNotification();
 
   useEffect(() => {
@@ -59,7 +70,15 @@ const SettingsPage: React.FC = () => {
       showNotification('Please log in first', 'error');
       return;
     }
-    const authUrl = db.meli.getAuthUrl(profile.organization_id);
+
+    // Generate PKCE codes
+    const codeVerifier = generateCodeVerifier();
+    const codeChallenge = await generateCodeChallenge(codeVerifier);
+
+    // Store code_verifier in cookie (will be read by callback)
+    document.cookie = `meli_code_verifier=${codeVerifier}; path=/; max-age=600; SameSite=Lax`;
+
+    const authUrl = db.meli.getAuthUrl(profile.organization_id, codeChallenge);
     window.location.href = authUrl;
   };
 
@@ -69,25 +88,6 @@ const SettingsPage: React.FC = () => {
       showNotification('Sync successful!', 'success');
     } catch (error: any) {
       showNotification(error.message || 'Sync failed', 'error');
-    }
-  };
-
-  const handleCreateUser = async () => {
-    if (!newUserEmail || !newUserPassword) {
-      showNotification('Please fill in all fields', 'error');
-      return;
-    }
-
-    setIsCreatingUser(true);
-    try {
-      await createUser(newUserEmail, newUserPassword);
-      showNotification('User created successfully!', 'success');
-      setNewUserEmail('');
-      setNewUserPassword('');
-    } catch (error: any) {
-      showNotification(error.message || 'Failed to create user', 'error');
-    } finally {
-      setIsCreatingUser(false);
     }
   };
 
@@ -141,42 +141,6 @@ const SettingsPage: React.FC = () => {
       <h1 className="text-2xl font-bold mb-6">Settings</h1>
 
       <div className="space-y-6">
-        <GlassPanel>
-          <h2 className="text-xl font-semibold mb-4">Create App User</h2>
-          <p className="text-gray-400 mb-4">
-            Add a new user to your organization (for accessing this app).
-          </p>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">Email</label>
-              <input
-                type="email"
-                value={newUserEmail}
-                onChange={(e) => setNewUserEmail(e.target.value)}
-                placeholder="user@example.com"
-                className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">Password</label>
-              <input
-                type="password"
-                value={newUserPassword}
-                onChange={(e) => setNewUserPassword(e.target.value)}
-                placeholder="Enter password"
-                className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
-              />
-            </div>
-            <button
-              onClick={handleCreateUser}
-              disabled={isCreatingUser}
-              className="px-5 py-2 rounded-lg font-medium transition-all duration-300 backdrop-blur-md bg-blue-500/10 border border-blue-500/20 text-blue-400 hover:bg-blue-500/20 hover:border-blue-500/50 hover:shadow-[0_0_15px_rgba(59,130,246,0.3)] disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isCreatingUser ? 'Creating...' : 'Create User'}
-            </button>
-          </div>
-        </GlassPanel>
-
         <GlassPanel>
             <h2 className="text-xl font-semibold mb-4">Mercado Livre Integration</h2>
             <p className="text-gray-400 mb-4">
