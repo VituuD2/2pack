@@ -50,12 +50,8 @@ const App: React.FC = () => {
            </p>
          </div>
          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 px-4 py-2 bg-black/30 rounded-full border border-[var(--border-color-medium)]">
-               <div className="w-2 h-2 rounded-full bg-gray-500"></div>
-               <span className="text-xs font-mono text-[var(--text-secondary)]">Meli API: Disconnected</span>
-            </div>
             <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-[var(--aurora-1)] to-[var(--aurora-2)] flex items-center justify-center font-bold">
-               OP
+               {userProfile?.email?.charAt(0)?.toUpperCase() || 'U'}
             </div>
          </div>
       </header>

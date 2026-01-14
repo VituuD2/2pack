@@ -4,6 +4,41 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/services/supabaseClient';
 import { GlassPanel } from './GlassPanel';
 
+// Helper function to format time ago and determine online status
+const getLastSeenStatus = (lastSignInAt: string | null) => {
+  if (!lastSignInAt) {
+    return { status: 'offline', text: 'Never', color: 'text-gray-400' };
+  }
+
+  const lastSeen = new Date(lastSignInAt);
+  const now = new Date();
+  const diffMs = now.getTime() - lastSeen.getTime();
+  const diffMinutes = Math.floor(diffMs / (1000 * 60));
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  // Consider "online" if last sign in was within 5 minutes
+  if (diffMinutes < 5) {
+    return { status: 'online', text: 'Online', color: 'text-green-400' };
+  }
+
+  // Format the time ago text
+  let timeText: string;
+  if (diffMinutes < 60) {
+    timeText = `${diffMinutes}m ago`;
+  } else if (diffHours < 24) {
+    timeText = `${diffHours}h ago`;
+  } else if (diffDays === 1) {
+    timeText = '1 day ago';
+  } else if (diffDays < 30) {
+    timeText = `${diffDays} days ago`;
+  } else {
+    timeText = lastSeen.toLocaleDateString();
+  }
+
+  return { status: 'offline', text: timeText, color: 'text-gray-400' };
+};
+
 const AdminPanel = () => {
   const { users, loading, error, refetch } = useUsers();
   const { session, userProfile } = useAuth();
@@ -100,7 +135,7 @@ const AdminPanel = () => {
                 <tr>
                   <th className="p-3 font-semibold text-[var(--text-secondary)]">Email</th>
                   <th className="p-3 font-semibold text-[var(--text-secondary)]">Full Name</th>
-                  <th className="p-3 font-semibold text-[var(--text-secondary)]">Last Sign In</th>
+                  <th className="p-3 font-semibold text-[var(--text-secondary)]">Status</th>
                   <th className="p-3 font-semibold text-[var(--text-secondary)]">Role</th>
                   <th className="p-3 font-semibold text-[var(--text-secondary)]">Actions</th>
                 </tr>
@@ -121,10 +156,16 @@ const AdminPanel = () => {
                       <td className="p-3 text-[var(--text-secondary)]">
                         {user.full_name || '—'}
                       </td>
-                      <td className="p-3 text-[var(--text-secondary)]">
-                        {user.last_sign_in_at 
-                          ? new Date(user.last_sign_in_at).toLocaleString() 
-                          : 'Never'}
+                      <td className="p-3">
+                        {(() => {
+                          const { status, text, color } = getLastSeenStatus(user.last_sign_in_at);
+                          return (
+                            <div className="flex items-center gap-2">
+                              <div className={`w-2 h-2 rounded-full ${status === 'online' ? 'bg-green-400' : 'bg-gray-500'}`} />
+                              <span className={color}>{text}</span>
+                            </div>
+                          );
+                        })()}
                       </td>
                       <td className="p-3">
                         <span 
