@@ -98,6 +98,23 @@ export async function POST(request: Request) {
 
     // 3. Get Valid Access Token (Refresh if needed)
     const accessToken = await getValidAccessToken(organizationId, meliAccount);
+    
+    // 3.1 Verify Connection / User Data (Connection Test)
+    // Ensures the token is valid and we can access user data
+    const userCheckResponse = await fetch('https://api.mercadolibre.com/users/me', {
+      headers: { 'Authorization': `Bearer ${accessToken}` }
+    });
+
+    if (!userCheckResponse.ok) {
+      const userErr = await userCheckResponse.json();
+      console.error('Connection verification failed:', userErr);
+      return NextResponse.json({ message: 'Connection to Mercado Livre failed. Please reconnect.', details: userErr }, { status: 401 });
+    }
+    
+    const userData = await userCheckResponse.json();
+    // Optional: Update user info in DB if needed (e.g. nickname)
+    // const sellerId = userData.id; // We can use this instead of stored one
+
     const sellerId = meliAccount.meli_user_id;
 
     // 4. Fetch Recent Orders from Meli
