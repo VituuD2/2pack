@@ -35,7 +35,10 @@ export const InviteManager: React.FC = () => {
 
     try {
       const temporaryPassword = Math.random().toString(36).slice(-8);
-      const result = await inviteUser(email, temporaryPassword);
+      // Generate username from email (before @, sanitized to allowed chars)
+      const baseUsername = email.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '_').slice(0, 20);
+      const uniqueUsername = `${baseUsername}_${Math.random().toString(36).slice(-4)}`;
+      const result = await inviteUser(email, temporaryPassword, uniqueUsername);
       if (result.error) {
         throw new Error(result.error);
       }

@@ -57,8 +57,18 @@ const SettingsPage: React.FC = () => {
   }, []);
 
   const handleCreateUser = async () => {
-    if (!newUserEmail || !newUserPassword) {
-      showNotification('Email and password are required', 'error');
+    if (!newUserEmail || !newUserPassword || !newUserName) {
+      showNotification('Email, username, and password are required', 'error');
+      return;
+    }
+
+    if (newUserName.length < 3) {
+      showNotification('Username must be at least 3 characters', 'error');
+      return;
+    }
+
+    if (!/^[a-zA-Z0-9_]+$/.test(newUserName)) {
+      showNotification('Username can only contain letters, numbers, and underscores', 'error');
       return;
     }
 
@@ -69,7 +79,7 @@ const SettingsPage: React.FC = () => {
 
     setIsCreatingUser(true);
     try {
-      const result = await createUser(newUserEmail, newUserPassword, newUserRole);
+      const result = await createUser(newUserEmail, newUserPassword, newUserName, newUserRole);
       if (result.error) {
         showNotification(result.error, 'error');
       } else {
@@ -212,12 +222,12 @@ const SettingsPage: React.FC = () => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Username</label>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Username *</label>
                 <input
                   type="text"
                   value={newUserName}
                   onChange={(e) => setNewUserName(e.target.value)}
-                  placeholder="John Doe"
+                  placeholder="john_doe123"
                   className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
                 />
               </div>

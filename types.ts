@@ -62,6 +62,7 @@ export interface UserProfile {
   organization_id: string;
   role: 'admin' | 'operator';
   email: string;
+  username?: string;
 }
 
 export interface Invite {

@@ -62,8 +62,11 @@ const App: React.FC = () => {
          </div>
          <div className="flex items-center gap-4">
             <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-[var(--aurora-1)] to-[var(--aurora-2)] flex items-center justify-center font-bold">
-               {userProfile?.email?.charAt(0)?.toUpperCase() || 'U'}
+               {userProfile?.username?.charAt(0)?.toUpperCase() || userProfile?.email?.charAt(0)?.toUpperCase() || 'U'}
             </div>
+            {userProfile?.username && (
+              <span className="text-sm text-[var(--text-secondary)]">{userProfile.username}</span>
+            )}
          </div>
       </header>
       <div className="flex-1 overflow-auto px-2 pb-4">

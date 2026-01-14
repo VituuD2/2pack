@@ -3,17 +3,35 @@
 import { createClient } from '@/utils/supabase/server';
 import { supabaseAdmin } from "@/utils/supabase/admin";
 
-export async function createUser(email: string, password: string, role: 'admin' | 'operator' = 'operator') {
+export async function createUser(
+  email: string,
+  password: string,
+  username: string,
+  role: 'admin' | 'operator' = 'operator'
+) {
   const supabase = createClient();
 
-  // 1. Verify the requester is logged in
+  // 1. Validate inputs
+  if (!email || !password || !username) {
+    return { error: 'Email, password, and username are required.' };
+  }
+
+  if (username.length < 3) {
+    return { error: 'Username must be at least 3 characters.' };
+  }
+
+  if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+    return { error: 'Username can only contain letters, numbers, and underscores.' };
+  }
+
+  // 2. Verify the requester is logged in
   const { data: { session } } = await supabase.auth.getSession();
 
   if (!session) {
     return { error: 'You must be logged in to create a user.' };
   }
 
-  // 2. Get the admin's organization
+  // 3. Get the admin's organization
   const { data: adminProfile, error: adminError } = await supabaseAdmin
     .from('user_profiles')
     .select('organization_id, role')
@@ -24,12 +42,23 @@ export async function createUser(email: string, password: string, role: 'admin' 
     return { error: 'Admin profile not found.' };
   }
 
-  // 3. Verify the requester is an admin
+  // 4. Verify the requester is an admin
   if (adminProfile.role !== 'admin') {
     return { error: 'Only admins can create users.' };
   }
 
-  // 4. Check if user already exists in user_profiles
+  // 5. Check if username is already taken (globally unique)
+  const { data: existingUsername } = await supabaseAdmin
+    .from('user_profiles')
+    .select('id')
+    .eq('username', username)
+    .maybeSingle();
+
+  if (existingUsername) {
+    return { error: 'This username is already taken. Please choose another.' };
+  }
+
+  // 6. Check if user already exists in user_profiles by email
   const { data: existingProfile } = await supabaseAdmin
     .from('user_profiles')
     .select('id')
@@ -37,7 +66,7 @@ export async function createUser(email: string, password: string, role: 'admin' 
     .maybeSingle();
 
   if (existingProfile) {
-    return { error: 'A user with this email already exists in your organization.' };
+    return { error: 'A user with this email already exists.' };
   }
 
   // 5. Try to create the user in Supabase Auth
@@ -82,6 +111,7 @@ export async function createUser(email: string, password: string, role: 'admin' 
       {
         id: userId,
         email: email,
+        username: username,
         role: role,
         organization_id: adminProfile.organization_id
       }
