@@ -7,9 +7,16 @@ export async function POST(request: Request) {
     const supabase = createClient();
     
     // 1. Verify Authentication
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !user) {
+      console.error('Auth Error in disconnect:', authError);
+      // Debug cookies
+      const { cookies } = await import('next/headers');
+      const cookieStore = cookies();
+      console.log('Cookies present:', cookieStore.getAll().map(c => c.name));
+      
+      return NextResponse.json({ message: 'Unauthorized', debug_error: authError }, { status: 401 });
     }
 
     const body = await request.json();
