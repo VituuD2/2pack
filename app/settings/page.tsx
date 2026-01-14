@@ -20,8 +20,18 @@ const SettingsPage: React.FC = () => {
   const [testUser, setTestUser] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { showNotification } = useNotification();
-  
-  // ... existing hooks ...
+
+  useEffect(() => {
+    const checkMeliConnection = async () => {
+      try {
+        const isConnected = await db.meli.checkConnection();
+        setIsMeliConnected(isConnected);
+      } catch (error) {
+        console.error('Error checking Meli connection:', error);
+      }
+    };
+    checkMeliConnection();
+  }, []);
 
   const handleCreateTestUser = async () => {
     try {
