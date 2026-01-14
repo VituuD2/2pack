@@ -72,7 +72,24 @@ const SettingsPage: React.FC = () => {
     }
   };
 
-  // ... existing functions ...
+  const handleCreateUser = async () => {
+    if (!newUserEmail || !newUserPassword) {
+      showNotification('Please fill in all fields', 'error');
+      return;
+    }
+
+    setIsCreatingUser(true);
+    try {
+      await createUser(newUserEmail, newUserPassword);
+      showNotification('User created successfully!', 'success');
+      setNewUserEmail('');
+      setNewUserPassword('');
+    } catch (error: any) {
+      showNotification(error.message || 'Failed to create user', 'error');
+    } finally {
+      setIsCreatingUser(false);
+    }
+  };
 
   return (
     <div className="p-6">
@@ -122,8 +139,43 @@ const SettingsPage: React.FC = () => {
       )}
 
       <h1 className="text-2xl font-bold mb-6">Settings</h1>
-      
-      {/* ... existing panels ... */}
+
+      <div className="space-y-6">
+        <GlassPanel>
+          <h2 className="text-xl font-semibold mb-4">Create New User</h2>
+          <p className="text-gray-400 mb-4">
+            Add a new user to your organization.
+          </p>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1">Email</label>
+              <input
+                type="email"
+                value={newUserEmail}
+                onChange={(e) => setNewUserEmail(e.target.value)}
+                placeholder="user@example.com"
+                className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1">Password</label>
+              <input
+                type="password"
+                value={newUserPassword}
+                onChange={(e) => setNewUserPassword(e.target.value)}
+                placeholder="Enter password"
+                className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+              />
+            </div>
+            <button
+              onClick={handleCreateUser}
+              disabled={isCreatingUser}
+              className="px-5 py-2 rounded-lg font-medium transition-all duration-300 backdrop-blur-md bg-blue-500/10 border border-blue-500/20 text-blue-400 hover:bg-blue-500/20 hover:border-blue-500/50 hover:shadow-[0_0_15px_rgba(59,130,246,0.3)] disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isCreatingUser ? 'Creating...' : 'Create User'}
+            </button>
+          </div>
+        </GlassPanel>
 
         <GlassPanel>
             <h2 className="text-xl font-semibold mb-4">Mercado Livre Integration</h2>
@@ -165,6 +217,7 @@ const SettingsPage: React.FC = () => {
               )}
             </div>
         </GlassPanel>
+      </div>
     </div>
   );
 };
