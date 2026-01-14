@@ -7,6 +7,7 @@ import { AuroraBackground } from '@/components/AuroraBackground';
 import { NotificationProvider } from '@/components/NotificationContext';
 import { AuthGuard } from '@/components/AuthGuard';
 import { AuthProvider } from '@/hooks/useAuth';
+import { UserActivityTracker } from '@/components/UserActivityTracker';
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -24,6 +25,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <AuthProvider>
             <AuroraBackground />
             <AuthGuard>
+              <UserActivityTracker />
               {shouldShowSidebar && <Sidebar />}
               <main className="flex-1 p-4 h-full overflow-hidden flex flex-col relative z-0">
                 {children}
