@@ -79,7 +79,11 @@ export const db = {
 
   shipments: {
     getAll: async (): Promise<Shipment[]> => {
-      const { data, error } = await supabase.from('shipments').select('*');
+      const { data, error } = await supabase
+        .from('shipments')
+        .select('*, items:shipment_items(*)')
+        .order('created_at', { ascending: false });
+        
       if (error) throw error;
       return data as Shipment[];
     },
