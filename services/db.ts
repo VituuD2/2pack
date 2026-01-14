@@ -291,5 +291,28 @@ export const db = {
         throw new Error(errorData.message || 'Failed to disconnect Meli account');
       }
     },
+
+    createTestUser: async (siteId: string = 'MLB'): Promise<any> => {
+      const profile = await getCurrentUserProfile();
+      if (!profile) throw new Error("User profile not found.");
+
+      const response = await fetch('/api/meli/test-user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          organizationId: profile.organization_id,
+          siteId 
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to create test user');
+      }
+      
+      return await response.json();
+    }
   }
 };

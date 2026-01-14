@@ -17,84 +17,22 @@ const SettingsPage: React.FC = () => {
   const [isCreatingUser, setIsCreatingUser] = useState(false);
   const [isMeliConnected, setIsMeliConnected] = useState(false);
   const [isDisconnectModalOpen, setIsDisconnectModalOpen] = useState(false);
+  const [testUser, setTestUser] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { showNotification } = useNotification();
-
-  useEffect(() => {
-    const fetchUserAndMeliStatus = async () => {
-      const { data, error } = await supabase.auth.getUser();
-      if (!error && data) {
-        setUser(data.user);
-      }
-      const isConnected = await db.meli.checkConnection();
-      setIsMeliConnected(isConnected);
-    };
-    fetchUserAndMeliStatus();
-  }, []);
-
-  const handleAvatarChangeClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file || !user) {
-      return;
-    }
-
-    setIsUploading(true);
-
-    try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${user.id}-${Date.now()}.${fileExt}`;
-      const filePath = `${user.id}/${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, file, { upsert: true });
-
-      if (uploadError) throw uploadError;
-
-      const { data: publicUrlData } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(filePath);
-
-      if (!publicUrlData) throw new Error('Could not get public URL for avatar.');
-
-      const { error: updateUserError } = await supabase.auth.updateUser({
-        data: { avatar_url: publicUrlData.publicUrl },
-      });
-
-      if (updateUserError) throw updateUserError;
-
-      showNotification('Avatar updated successfully!', 'success');
-      setTimeout(() => window.location.reload(), 1000);
-
-    } catch (error: any) {
-      console.error('Error uploading avatar:', error);
-      showNotification(error.message || 'Failed to upload new avatar.', 'error');
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
-  const handleCreateUser = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newUserEmail || !newUserPassword) return;
-
-    setIsCreatingUser(true);
-    const result = await createUser(newUserEmail, newUserPassword);
-
-    if (result.error) {
-      showNotification(result.error, 'error');
-    } else {
-      showNotification('User created successfully!', 'success');
-      setNewUserEmail('');
-      setNewUserPassword('');
-    }
-    setIsCreatingUser(false);
-  };
   
+  // ... existing hooks ...
+
+  const handleCreateTestUser = async () => {
+    try {
+      const user = await db.meli.createTestUser();
+      setTestUser(user);
+      showNotification('Test user created successfully!', 'success');
+    } catch (error: any) {
+      showNotification(error.message || 'Failed to create test user', 'error');
+    }
+  };
+
   const handleMeliDisconnect = async () => {
     try {
       await db.meli.disconnect();
@@ -104,48 +42,8 @@ const SettingsPage: React.FC = () => {
       showNotification(error.message || 'Failed to disconnect.', 'error');
     }
   };
-
-  const handleMeliSyncTest = async () => {
-    try {
-      await db.meli.syncShipments();
-      showNotification('Connection verified & Sync started successfully!', 'success');
-    } catch (error: any) {
-      showNotification('Connection test failed: ' + error.message, 'error');
-    }
-  };
-
-  const handleMeliConnect = async () => {
-    const userProfile = await db.auth.getUserProfile();
-    if (!userProfile) {
-        showNotification('Could not identify your organization. Please log in again.', 'error');
-        return;
-    }
-
-    // PKCE Generation
-    const generateRandomString = (length: number) => {
-      const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
-      let text = '';
-      for (let i = 0; i < length; i++) {
-        text += possible.charAt(Math.floor(Math.random() * possible.length));
-      }
-      return text;
-    };
-
-    const codeVerifier = generateRandomString(128);
-    const encoder = new TextEncoder();
-    const data = encoder.encode(codeVerifier);
-    const hash = await window.crypto.subtle.digest('SHA-256', data);
-    const codeChallenge = btoa(String.fromCharCode(...Array.from(new Uint8Array(hash))))
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_')
-      .replace(/=+$/, '');
-
-    // Store verifier in cookie for the callback route to access
-    document.cookie = `meli_code_verifier=${codeVerifier}; path=/; max-age=600; SameSite=Lax`;
-
-    const authUrl = db.meli.getAuthUrl(userProfile.organization_id, codeChallenge);
-    window.location.href = authUrl;
-  };
+  
+  // ... existing functions ...
 
   return (
     <div className="p-6">
@@ -159,65 +57,45 @@ const SettingsPage: React.FC = () => {
         isDestructive={true}
       />
       
-      <h1 className="text-2xl font-bold mb-6">Settings</h1>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <GlassPanel>
-          <h2 className="text-xl font-semibold mb-4">User Profile</h2>
-          <div className="flex items-center gap-6">
-            <img
-              src={user?.user_metadata?.avatar_url || `https://api.dicebear.com/8.x/bottts/svg?seed=${user?.id}`}
-              alt="User Avatar"
-              className="w-24 h-24 rounded-full bg-gray-700 border-2 border-white/20 shadow-lg"
-            />
-            <div>
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileChange}
-                className="hidden"
-                accept="image/png, image/jpeg, image/webp"
-                disabled={isUploading}
-              />
-              <button
-                onClick={handleAvatarChangeClick}
-                className="px-5 py-2 rounded-lg font-medium transition-all duration-300 backdrop-blur-md bg-blue-500/10 border border-blue-500/20 text-blue-400 hover:bg-blue-500/20 hover:border-blue-500/50 hover:shadow-[0_0_15px_rgba(59,130,246,0.3)] disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={isUploading}
-              >
-                {isUploading ? 'Uploading...' : 'Upload Image'}
-              </button>
-              <p className="text-xs text-gray-400 mt-2">PNG, JPG, or WEBP.</p>
+      {testUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-gray-800 border border-gray-700 rounded-xl p-6 max-w-md w-full shadow-2xl">
+            <h3 className="text-xl font-bold text-white mb-4">Test User Created</h3>
+            <div className="bg-gray-900 rounded-lg p-4 space-y-3 mb-6 font-mono text-sm border border-gray-700">
+              <div>
+                <span className="text-gray-400 block">ID:</span>
+                <span className="text-green-400 select-all">{testUser.id}</span>
+              </div>
+              <div>
+                <span className="text-gray-400 block">Nickname:</span>
+                <span className="text-blue-400 select-all">{testUser.nickname}</span>
+              </div>
+              <div>
+                <span className="text-gray-400 block">Password:</span>
+                <span className="text-red-400 select-all">{testUser.password}</span>
+              </div>
+               <div>
+                <span className="text-gray-400 block">Site Status:</span>
+                <span className="text-yellow-400">{testUser.site_status}</span>
+              </div>
             </div>
-          </div>
-        </GlassPanel>
-
-        <GlassPanel>
-          <h2 className="text-xl font-semibold mb-4">Create New User</h2>
-          <form onSubmit={handleCreateUser} className="flex flex-col gap-4">
-            <input
-              type="email"
-              value={newUserEmail}
-              onChange={(e) => setNewUserEmail(e.target.value)}
-              placeholder="user@example.com"
-              className="w-full rounded-lg px-3 py-2 bg-[var(--control-bg)] border border-[var(--border-color-medium)] text-[var(--text-primary)] placeholder-[var(--text-secondary)] focus:ring-1 focus:ring-[var(--ios-blue)] focus:outline-none"
-              required
-            />
-            <input
-              type="password"
-              value={newUserPassword}
-              onChange={(e) => setNewUserPassword(e.target.value)}
-              placeholder="Temporary Password"
-              className="w-full rounded-lg px-3 py-2 bg-[var(--control-bg)] border border-[var(--border-color-medium)] text-[var(--text-primary)] placeholder-[var(--text-secondary)] focus:ring-1 focus:ring-[var(--ios-blue)] focus:outline-none"
-              required
-            />
-            <button type="submit" 
-              className="px-5 py-2 rounded-lg font-medium transition-all duration-300 backdrop-blur-md bg-blue-500/10 border border-blue-500/20 text-blue-400 hover:bg-blue-500/20 hover:border-blue-500/50 hover:shadow-[0_0_15px_rgba(59,130,246,0.3)] disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={isCreatingUser}>
-              {isCreatingUser ? 'Creating...' : 'Create User'}
+            <div className="text-xs text-gray-400 mb-6">
+              ⚠️ Save these credentials immediately. They cannot be recovered later.
+            </div>
+            <button 
+              onClick={() => setTestUser(null)}
+              className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+            >
+              Close & Copy Nothing
             </button>
-          </form>
-        </GlassPanel>
-        
+          </div>
+        </div>
+      )}
+
+      <h1 className="text-2xl font-bold mb-6">Settings</h1>
+      
+      {/* ... existing panels ... */}
+
         <GlassPanel>
             <h2 className="text-xl font-semibold mb-4">Mercado Livre Integration</h2>
             <p className="text-gray-400 mb-4">
@@ -226,7 +104,7 @@ const SettingsPage: React.FC = () => {
                 : 'Connect your Mercado Livre account to sync shipments and streamline your logistics.'}
             </p>
             
-            <div className="flex gap-3">
+            <div className="flex gap-3 flex-wrap">
               {!isMeliConnected ? (
                 <button 
                   onClick={handleMeliConnect} 
@@ -241,6 +119,12 @@ const SettingsPage: React.FC = () => {
                     className="px-5 py-2 rounded-lg font-medium transition-all duration-300 backdrop-blur-md bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 hover:bg-yellow-500/20 hover:border-yellow-500/50 hover:shadow-[0_0_15px_rgba(234,179,8,0.3)]"
                   >
                     Sync / Test Connection
+                  </button>
+                  <button 
+                    onClick={handleCreateTestUser}
+                    className="px-5 py-2 rounded-lg font-medium transition-all duration-300 backdrop-blur-md bg-purple-500/10 border border-purple-500/20 text-purple-400 hover:bg-purple-500/20 hover:border-purple-500/50 hover:shadow-[0_0_15px_rgba(168,85,247,0.3)]"
+                  >
+                    Create Test User
                   </button>
                   <button 
                     onClick={() => setIsDisconnectModalOpen(true)}
