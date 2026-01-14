@@ -153,69 +153,166 @@ export async function POST(request: Request) {
       }
     }
 
-    // --- INBOUND SYNC (DIRECT ENDPOINT) ---
-    console.log('Starting Inbound Sync (Direct API)...');
+    // --- INBOUND SYNC (FULFILLMENT OPERATIONS - DEEP HISTORY) ---
+    console.log('Starting Inbound Sync (Deep History)...');
     let inboundCount = 0;
 
     try {
-      // Try the standard fulfillment inbounds search endpoint
-      // Fetching last 50 inbound shipments
-      const inboundUrl = `https://api.mercadolibre.com/fulfillment/inbounds/search?seller_id=${sellerId}&limit=50&sort=date_created_desc`;
-      
-      const inboundRes = await fetch(inboundUrl, {
+      // A. Get Seller's Items (ALL statuses) to find Inventory IDs
+      // Limit to 100 items to get a better breadth
+      const itemsSearchRes = await fetch(`https://api.mercadolibre.com/users/${sellerId}/items/search?limit=100`, {
         headers: { 'Authorization': `Bearer ${accessToken}` }
       });
+      
+      if (itemsSearchRes.ok) {
+        const itemsData = await itemsSearchRes.json();
+        const itemIds = itemsData.results || [];
+        console.log(`Found ${itemIds.length} items to check.`);
+        
+        if (itemIds.length > 0) {
+          // B. Get Item Details
+          const itemDetailsRes = await fetch(`https://api.mercadolibre.com/items?ids=${itemIds.join(',')}`, {
+             headers: { 'Authorization': `Bearer ${accessToken}` }
+          });
 
-      if (inboundRes.ok) {
-        const inboundData = await inboundRes.json();
-        const inbounds = inboundData.results || [];
-        console.log(`Found ${inbounds.length} inbound shipments via Direct API.`);
+          if (itemDetailsRes.ok) {
+            const itemDetails = await itemDetailsRes.json();
+            const inventoryIds = new Set<string>();
 
-        for (const inbound of inbounds) {
-          // Map Meli Inbound to Shipment
-          const shipmentData = {
-            organization_id: organizationId,
-            meli_id: inbound.id.toString(),
-            status: inbound.status === 'finished' ? 'completed' : 'pending', // Map statuses
-            type: 'inbound',
-            created_at: inbound.date_created,
-          };
+            // Collect unique inventory_ids
+            for (const itemWrapper of itemDetails) {
+              const item = itemWrapper.body;
+              if (item.inventory_id) {
+                inventoryIds.add(item.inventory_id);
+              }
+            }
 
-          // Upsert Shipment
-          const { data: existingShipment } = await supabaseAdmin
-            .from('shipments')
-            .select('id')
-            .eq('meli_id', shipmentData.meli_id)
-            .maybeSingle();
+            console.log(`Found ${inventoryIds.size} unique inventory IDs.`);
 
-          let shipmentId = existingShipment?.id;
+            // C. Check Operations for each Inventory ID
+            // We loop 12 times x 60 days = 720 days (~2 years) history
+            const historyLoops = 12;
 
-          if (!shipmentId) {
-             const { data: newShipment, error: createErr } = await supabaseAdmin
-               .from('shipments')
-               .insert(shipmentData)
-               .select()
-               .single();
-             
-             if (!createErr) {
-               shipmentId = newShipment.id;
-               inboundCount++;
-               // console.log(`Created inbound shipment: ${shipmentData.meli_id}`);
-             } else {
-               console.error(`Error creating inbound ${shipmentData.meli_id}:`, createErr);
-             }
+            for (const invId of Array.from(inventoryIds)) {
+               // console.log(`Checking history for Inventory ID: ${invId}`);
+               
+               for (let i = 0; i < historyLoops; i++) {
+                 const endDate = new Date();
+                 endDate.setDate(endDate.getDate() - (i * 60)); 
+                 
+                 const startDate = new Date(endDate);
+                 startDate.setDate(startDate.getDate() - 60); 
+                 
+                 const dateTo = endDate.toISOString().split('T')[0];
+                 const dateFrom = startDate.toISOString().split('T')[0];
+
+                 // console.log(`  > Period ${i+1}: ${dateFrom} to ${dateTo}`);
+
+                 const opsUrl = `https://api.mercadolibre.com/stock/fulfillment/operations/search?seller_id=${sellerId}&inventory_id=${invId}&date_from=${dateFrom}&date_to=${dateTo}&type=INBOUND_RECEPTION`;
+                 
+                 const opsRes = await fetch(opsUrl, {
+                   headers: { 'Authorization': `Bearer ${accessToken}` }
+                 });
+
+                 if (opsRes.ok) {
+                   const opsData = await opsRes.json();
+                   const operations = opsData.results || [];
+
+                   if (operations.length > 0) {
+                      console.log(`    Found ${operations.length} ops for ${invId} in Period ${i+1}`);
+                   }
+
+                   for (const op of operations) {
+                     // Map INBOUND_RECEPTION to Shipment
+                     // External reference usually contains 'inbound_id' or 'shipment_id' (rarely)
+                     // Look for type: 'inbound_id' OR type: 'shipment_id' if available (though usually shipment_id is for sales)
+                     const inboundRef = op.external_references?.find((ref: any) => ref.type === 'inbound_id');
+                     
+                     // If no inbound_id, fallback to OP id, but ideally we want the Inbound Shipment ID (e.g. 56347689)
+                     // Sometimes the 'inbound_id' value IS that number.
+                     const meliInboundId = inboundRef ? inboundRef.value : `OP-${op.id}`; 
+
+                     const shipmentData = {
+                       organization_id: organizationId,
+                       meli_id: meliInboundId,
+                       status: 'pending', // Default
+                       type: 'inbound',
+                       created_at: op.date_created,
+                     };
+
+                     // Upsert Inbound Shipment
+                     const { data: existingInbound } = await supabaseAdmin
+                       .from('shipments')
+                       .select('id')
+                       .eq('meli_id', shipmentData.meli_id)
+                       .maybeSingle();
+
+                     let shipmentId = existingInbound?.id;
+
+                     if (!shipmentId) {
+                        const { data: newInbound, error: createErr } = await supabaseAdmin
+                          .from('shipments')
+                          .insert(shipmentData)
+                          .select()
+                          .single();
+                        
+                        if (!createErr) {
+                          shipmentId = newInbound.id;
+                          inboundCount++;
+                          console.log(`      Created Inbound: ${shipmentData.meli_id}`);
+                        }
+                     }
+
+                     if (shipmentId) {
+                       // Link Product
+                       const matchingItemWrapper = itemDetails.find((w: any) => w.body.inventory_id === invId);
+                       const matchingItem = matchingItemWrapper?.body;
+
+                       if (matchingItem) {
+                          const sku = matchingItem.seller_sku;
+                          let productId: string | null = null;
+
+                          if (sku) {
+                            const { data: prod } = await supabaseAdmin
+                              .from('products')
+                              .select('id')
+                              .eq('organization_id', organizationId)
+                              .eq('sku', sku)
+                              .maybeSingle();
+                            productId = prod?.id || null;
+                          }
+                          
+                          if (!productId) {
+                             const { data: newProd } = await supabaseAdmin.from('products').insert({
+                                 organization_id: organizationId,
+                                 sku: sku || `MELI-${matchingItem.id}`,
+                                 title: matchingItem.title,
+                                 barcode: 'UNKNOWN',
+                                 unit_weight_kg: 0,
+                                 image_url: matchingItem.thumbnail || '',
+                             }).select().single();
+                             if (newProd) productId = newProd.id;
+                          }
+
+                          if (productId) {
+                             await supabaseAdmin.from('shipment_items').upsert({
+                                 shipment_id: shipmentId,
+                                 product_id: productId,
+                                 expected_qty: op.result?.total || 0,
+                                 scanned_qty: op.result?.available_quantity || 0,
+                             }, { onConflict: 'shipment_id, product_id' });
+                          }
+                       }
+                     }
+                   }
+                 }
+               } // End Date Loop
+            }
           }
-
-          // Optional: Sync Items for this inbound
-          // We might need to call /fulfillment/inbounds/{id}/items to get details if not present in list
-          // For now, let's just create the header to ensure visibility. 
-          // If 'items' or 'lines' are in the response, we can sync them.
         }
       } else {
-        const errText = await inboundRes.text();
-        console.error('Inbound Direct API Failed:', inboundRes.status, errText);
+        console.error('Items search failed:', itemsSearchRes.status);
       }
-
     } catch (inboundError) {
       console.error('Error syncing inbounds:', inboundError);
     }
