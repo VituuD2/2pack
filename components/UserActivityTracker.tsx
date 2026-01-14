@@ -5,7 +5,8 @@ import { db } from '@/services/db';
 import { useAuth } from '@/hooks/useAuth';
 
 export const UserActivityTracker = () => {
-  const { user } = useAuth();
+  const { session } = useAuth();
+  const user = session?.user;
 
   useEffect(() => {
     if (!user) return;
