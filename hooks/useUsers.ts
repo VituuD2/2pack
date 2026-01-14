@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/services/supabaseClient';
 import { AppUser } from '@/types';
+import { useAuth } from '@/hooks/useAuth';
 
 type UseUsersReturn = {
   users: AppUser[];
@@ -12,11 +13,21 @@ type UseUsersReturn = {
 };
 
 export const useUsers = (): UseUsersReturn => {
+  const { userProfile, loading: authLoading } = useAuth();
   const [users, setUsers] = useState<AppUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchUsers = async () => {
+    // If auth is still loading, wait
+    if (authLoading) return;
+
+    // Check admin role from DB profile
+    if (userProfile?.role !== 'admin') {
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setError(null);
     
@@ -54,7 +65,7 @@ export const useUsers = (): UseUsersReturn => {
 
   useEffect(() => {
     fetchUsers();
-  }, []);
+  }, [userProfile, authLoading]); // Re-run when auth profile is loaded
 
   return { users, loading, error, refetch: fetchUsers };
 };

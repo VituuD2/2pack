@@ -11,7 +11,7 @@ interface DashboardProps {
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ shipments }) => {
-  const { session, loading } = useAuth();
+  const { session, userProfile, loading } = useAuth();
   const user = session?.user;
   const [stats, setStats] = useState({
     pending: 0,
@@ -29,7 +29,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ shipments }) => {
     });
   }, [shipments]);
 
-  const isAdmin = user?.app_metadata?.roles?.includes('admin');
+  // Use the database role for consistency
+  const isAdmin = userProfile?.role === 'admin';
 
   if (loading) {
     return <p>Loading...</p>;
