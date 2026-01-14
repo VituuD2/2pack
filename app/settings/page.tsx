@@ -3,8 +3,10 @@
 import React, { useState, useEffect } from 'react';
 import { GlassPanel } from '@/components/GlassPanel';
 import { useNotification } from '@/components/NotificationContext';
+import { useAuth } from '@/hooks/useAuth';
 import { db } from '@/services/db';
 import { ConfirmationModal } from '@/components/ConfirmationModal';
+import { createUser } from '@/app/actions/createUser';
 
 // PKCE helper functions
 const generateCodeVerifier = (): string => {
@@ -27,10 +29,20 @@ const generateCodeChallenge = async (verifier: string): Promise<string> => {
 };
 
 const SettingsPage: React.FC = () => {
+  const { userProfile, loading: authLoading } = useAuth();
   const [isMeliConnected, setIsMeliConnected] = useState(false);
   const [isDisconnectModalOpen, setIsDisconnectModalOpen] = useState(false);
   const [testUser, setTestUser] = useState<any>(null);
   const { showNotification } = useNotification();
+
+  // Create User form state
+  const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserName, setNewUserName] = useState('');
+  const [newUserPassword, setNewUserPassword] = useState('');
+  const [newUserRole, setNewUserRole] = useState<'admin' | 'operator'>('operator');
+  const [isCreatingUser, setIsCreatingUser] = useState(false);
+
+  const isAdmin = userProfile?.role === 'admin';
 
   useEffect(() => {
     const checkMeliConnection = async () => {
@@ -43,6 +55,36 @@ const SettingsPage: React.FC = () => {
     };
     checkMeliConnection();
   }, []);
+
+  const handleCreateUser = async () => {
+    if (!newUserEmail || !newUserPassword) {
+      showNotification('Email and password are required', 'error');
+      return;
+    }
+
+    if (newUserPassword.length < 6) {
+      showNotification('Password must be at least 6 characters', 'error');
+      return;
+    }
+
+    setIsCreatingUser(true);
+    try {
+      const result = await createUser(newUserEmail, newUserPassword, newUserRole);
+      if (result.error) {
+        showNotification(result.error, 'error');
+      } else {
+        showNotification(`User ${newUserEmail} created successfully!`, 'success');
+        setNewUserEmail('');
+        setNewUserName('');
+        setNewUserPassword('');
+        setNewUserRole('operator');
+      }
+    } catch (error: any) {
+      showNotification(error.message || 'Failed to create user', 'error');
+    } finally {
+      setIsCreatingUser(false);
+    }
+  };
 
   const handleCreateTestUser = async () => {
     try {
@@ -91,6 +133,16 @@ const SettingsPage: React.FC = () => {
     }
   };
 
+  if (authLoading) {
+    return (
+      <div className="p-6">
+        <div className="flex items-center justify-center h-64">
+          <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6">
       <ConfirmationModal
@@ -102,7 +154,7 @@ const SettingsPage: React.FC = () => {
         confirmText="Disconnect"
         isDestructive={true}
       />
-      
+
       {testUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="bg-gray-800 border border-gray-700 rounded-xl p-6 max-w-md w-full shadow-2xl">
@@ -120,19 +172,19 @@ const SettingsPage: React.FC = () => {
                 <span className="text-gray-400 block">Password:</span>
                 <span className="text-red-400 select-all">{testUser.password}</span>
               </div>
-               <div>
+              <div>
                 <span className="text-gray-400 block">Site Status:</span>
                 <span className="text-yellow-400">{testUser.site_status}</span>
               </div>
             </div>
             <div className="text-xs text-gray-400 mb-6">
-              ⚠️ Save these credentials immediately. They cannot be recovered later.
+              Save these credentials immediately. They cannot be recovered later.
             </div>
-            <button 
+            <button
               onClick={() => setTestUser(null)}
               className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
             >
-              Close & Copy Nothing
+              Close
             </button>
           </div>
         </div>
@@ -141,7 +193,69 @@ const SettingsPage: React.FC = () => {
       <h1 className="text-2xl font-bold mb-6">Settings</h1>
 
       <div className="space-y-6">
-        <GlassPanel>
+        {/* Create User Section - Admin Only */}
+        {isAdmin && (
+          <GlassPanel>
+            <h2 className="text-xl font-semibold mb-4">Create User</h2>
+            <p className="text-gray-400 mb-4">
+              Add a new user to your organization.
+            </p>
+            <div className="space-y-4 max-w-md">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Email *</label>
+                <input
+                  type="email"
+                  value={newUserEmail}
+                  onChange={(e) => setNewUserEmail(e.target.value)}
+                  placeholder="user@example.com"
+                  className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Username</label>
+                <input
+                  type="text"
+                  value={newUserName}
+                  onChange={(e) => setNewUserName(e.target.value)}
+                  placeholder="John Doe"
+                  className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Password *</label>
+                <input
+                  type="password"
+                  value={newUserPassword}
+                  onChange={(e) => setNewUserPassword(e.target.value)}
+                  placeholder="Min 6 characters"
+                  className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Role</label>
+                <select
+                  value={newUserRole}
+                  onChange={(e) => setNewUserRole(e.target.value as 'admin' | 'operator')}
+                  className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                >
+                  <option value="operator">Operator</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+              <button
+                onClick={handleCreateUser}
+                disabled={isCreatingUser}
+                className="px-5 py-2 rounded-lg font-medium transition-all duration-300 backdrop-blur-md bg-blue-500/10 border border-blue-500/20 text-blue-400 hover:bg-blue-500/20 hover:border-blue-500/50 hover:shadow-[0_0_15px_rgba(59,130,246,0.3)] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isCreatingUser ? 'Creating...' : 'Create User'}
+              </button>
+            </div>
+          </GlassPanel>
+        )}
+
+        {/* Mercado Livre Integration - Admin Only */}
+        {isAdmin && (
+          <GlassPanel>
             <h2 className="text-xl font-semibold mb-4">Mercado Livre Integration</h2>
             <p className="text-gray-400 mb-4">
               {isMeliConnected
@@ -193,7 +307,25 @@ const SettingsPage: React.FC = () => {
                 </p>
               </div>
             )}
-        </GlassPanel>
+          </GlassPanel>
+        )}
+
+        {/* Non-admin message */}
+        {!isAdmin && (
+          <GlassPanel>
+            <div className="text-center py-8">
+              <div className="text-gray-400 mb-2">
+                <svg className="w-12 h-12 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold text-gray-300 mb-2">Admin Access Required</h3>
+              <p className="text-gray-500">
+                Settings are only available for administrators. Contact your admin if you need access.
+              </p>
+            </div>
+          </GlassPanel>
+        )}
       </div>
     </div>
   );

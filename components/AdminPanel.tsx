@@ -5,19 +5,19 @@ import { supabase } from '@/services/supabaseClient';
 import { GlassPanel } from './GlassPanel';
 
 // Helper function to format time ago and determine online status
-const getLastSeenStatus = (lastSignInAt: string | null) => {
-  if (!lastSignInAt) {
+const getLastSeenStatus = (lastActiveAt: string | null) => {
+  if (!lastActiveAt) {
     return { status: 'offline', text: 'Never', color: 'text-gray-400' };
   }
 
-  const lastSeen = new Date(lastSignInAt);
+  const lastSeen = new Date(lastActiveAt);
   const now = new Date();
   const diffMs = now.getTime() - lastSeen.getTime();
   const diffMinutes = Math.floor(diffMs / (1000 * 60));
   const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
-  // Consider "online" if last sign in was within 5 minutes
+  // Consider "online" if last active was within 5 minutes
   if (diffMinutes < 5) {
     return { status: 'online', text: 'Online', color: 'text-green-400' };
   }
@@ -158,7 +158,7 @@ const AdminPanel = () => {
                       </td>
                       <td className="p-3">
                         {(() => {
-                          const { status, text, color } = getLastSeenStatus(user.last_sign_in_at);
+                          const { status, text, color } = getLastSeenStatus(user.last_active_at);
                           return (
                             <div className="flex items-center gap-2">
                               <div className={`w-2 h-2 rounded-full ${status === 'online' ? 'bg-green-400' : 'bg-gray-500'}`} />

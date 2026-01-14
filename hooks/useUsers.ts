@@ -34,9 +34,10 @@ export const useUsers = (): UseUsersReturn => {
           id: user.id,
           email: user.email,
           last_sign_in_at: user.last_sign_in_at || '',
+          last_active_at: user.last_active_at || null,
           full_name: user.full_name || '',
           avatar_url: user.avatar_url || '',
-          app_metadata: { 
+          app_metadata: {
             roles: user.role === 'admin' ? ['admin'] : ['operator']
           },
         }));

@@ -23,6 +23,8 @@ const App: React.FC = () => {
           setUserProfile(profile);
           const shipmentData = await db.shipments.getAll();
           setShipments(shipmentData);
+          // Update last active timestamp
+          await db.auth.updateLastActive();
         } finally {
           setDataLoading(false);
         }
@@ -30,6 +32,15 @@ const App: React.FC = () => {
     };
 
     fetchData();
+
+    // Update last active every 2 minutes while the app is open
+    const activityInterval = setInterval(() => {
+      if (session) {
+        db.auth.updateLastActive();
+      }
+    }, 2 * 60 * 1000);
+
+    return () => clearInterval(activityInterval);
   }, [session]);
 
   if (authLoading) {

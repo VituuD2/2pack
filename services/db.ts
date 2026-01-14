@@ -121,6 +121,20 @@ export const db = {
     signOut: async (): Promise<void> => {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
+    },
+    updateLastActive: async (): Promise<void> => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        await supabase
+          .from('user_profiles')
+          .update({ last_active_at: new Date().toISOString() })
+          .eq('id', user.id);
+      } catch (error) {
+        // Silently fail - don't break the app if this fails
+        console.error('Failed to update last active:', error);
+      }
     }
   },
 

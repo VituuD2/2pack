@@ -87,6 +87,7 @@ export interface AppUser {
   id: string;
   email: string;
   last_sign_in_at: string;
+  last_active_at: string | null;
   full_name: string;
   avatar_url: string;
   app_metadata: {
