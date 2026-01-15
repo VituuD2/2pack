@@ -165,19 +165,40 @@ export async function POST(request: Request) {
     let stockSyncCount = 0;
 
     try {
-      // A. FIRST: Try to fetch FBM Inbound Shipments directly
-      // This endpoint returns the actual inbound shipments like #56347689
-      const fbmInboundsUrl = `https://api.mercadolibre.com/users/${sellerId}/fbm_inbounds/search?status=ready_to_ship,shipped,delivered,in_warehouse,processing,finished&limit=50`;
-      console.log(`Fetching FBM inbounds from: ${fbmInboundsUrl}`);
+      // A. Try multiple FBM/Fulfillment inbound endpoints
+      // Endpoint 1: /shipments/fulfillment/inbounds
+      const inboundEndpoints = [
+        `https://api.mercadolibre.com/shipments/fulfillment/inbounds?seller_id=${sellerId}`,
+        `https://api.mercadolibre.com/users/${sellerId}/shipping_preferences/fulfillment/inbounds`,
+        `https://api.mercadolibre.com/users/${sellerId}/fbm_inbounds/search?limit=50`,
+      ];
 
-      const fbmRes = await fetch(fbmInboundsUrl, {
-        headers: { 'Authorization': `Bearer ${accessToken}` }
-      });
+      let fbmShipments: any[] = [];
 
-      if (fbmRes.ok) {
-        const fbmData = await fbmRes.json();
-        const fbmShipments = fbmData.results || [];
-        console.log(`Found ${fbmShipments.length} FBM inbound shipments.`);
+      for (const endpoint of inboundEndpoints) {
+        console.log(`Trying FBM endpoint: ${endpoint}`);
+        const fbmRes = await fetch(endpoint, {
+          headers: { 'Authorization': `Bearer ${accessToken}` }
+        });
+
+        if (fbmRes.ok) {
+          const fbmData = await fbmRes.json();
+          const results = fbmData.results || fbmData.inbounds || fbmData || [];
+          if (Array.isArray(results) && results.length > 0) {
+            fbmShipments = results;
+            console.log(`Found ${fbmShipments.length} FBM inbound shipments from ${endpoint}`);
+            break;
+          } else {
+            console.log(`Endpoint ${endpoint} returned empty or non-array: ${JSON.stringify(fbmData).substring(0, 200)}`);
+          }
+        } else {
+          const errText = await fbmRes.text();
+          console.log(`Endpoint ${endpoint} failed (${fbmRes.status}): ${errText.substring(0, 200)}`);
+        }
+      }
+
+      if (fbmShipments.length > 0) {
+        console.log(`Processing ${fbmShipments.length} FBM inbound shipments.`);
 
         for (const fbm of fbmShipments) {
           const meliInboundId = `FBM-${fbm.id}`;
@@ -280,8 +301,7 @@ export async function POST(request: Request) {
           }
         }
       } else {
-        const fbmError = await fbmRes.text();
-        console.log(`FBM inbounds fetch failed (${fbmRes.status}): ${fbmError}`);
+        console.log('No FBM inbound shipments found from any endpoint.');
       }
 
       // B. Get Seller's Items to find Inventory IDs for stock data
