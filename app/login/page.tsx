@@ -22,7 +22,8 @@ export default function LoginPage() {
     if (error) {
       showNotification(error.message, 'error')
     } else {
-      router.push('/')
+      // Force a hard reload to ensure admin state is correctly picked up
+      window.location.href = '/'
     }
   }
 

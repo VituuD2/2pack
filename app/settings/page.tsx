@@ -41,6 +41,7 @@ const SettingsPage: React.FC = () => {
   const [newUserPassword, setNewUserPassword] = useState('');
   const [newUserRole, setNewUserRole] = useState<'admin' | 'operator'>('operator');
   const [isCreatingUser, setIsCreatingUser] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const isAdmin = userProfile?.role === 'admin';
 
@@ -135,11 +136,14 @@ const SettingsPage: React.FC = () => {
   };
 
   const handleMeliSyncTest = async () => {
+    setIsSyncing(true);
     try {
       await db.meli.syncShipments();
       showNotification('Sync successful!', 'success');
     } catch (error: any) {
       showNotification(error.message || 'Sync failed', 'error');
+    } finally {
+      setIsSyncing(false);
     }
   };
 
@@ -285,9 +289,17 @@ const SettingsPage: React.FC = () => {
                 <>
                   <button
                     onClick={handleMeliSyncTest}
-                    className="px-5 py-2 rounded-lg font-medium transition-all duration-300 backdrop-blur-md bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 hover:bg-yellow-500/20 hover:border-yellow-500/50 hover:shadow-[0_0_15px_rgba(234,179,8,0.3)]"
+                    disabled={isSyncing}
+                    className="px-5 py-2 rounded-lg font-medium transition-all duration-300 backdrop-blur-md bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 hover:bg-yellow-500/20 hover:border-yellow-500/50 hover:shadow-[0_0_15px_rgba(234,179,8,0.3)] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                   >
-                    Sync / Test Connection
+                    {isSyncing ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-yellow-400/30 border-t-yellow-400 rounded-full animate-spin" />
+                        <span>Syncing...</span>
+                      </>
+                    ) : (
+                      'Sync / Test Connection'
+                    )}
                   </button>
                   <button
                     onClick={() => setIsDisconnectModalOpen(true)}

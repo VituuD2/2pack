@@ -33,6 +33,15 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
     setNotification(null);
   };
 
+  React.useEffect(() => {
+    if (notification) {
+      const timer = setTimeout(() => {
+        setNotification(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [notification]);
+
   return (
     <NotificationContext.Provider value={{ showNotification }}>
       {children}
