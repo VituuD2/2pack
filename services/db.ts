@@ -131,10 +131,14 @@ export const db = {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        await supabase
+        const { error } = await supabase
           .from('user_profiles')
           .update({ last_active_at: new Date().toISOString() })
           .eq('id', user.id);
+
+        if (error) {
+          console.error('Failed to update last_active_at:', error);
+        }
       } catch (error) {
         // Silently fail - don't break the app if this fails
         console.error('Failed to update last active:', error);
@@ -258,13 +262,10 @@ export const db = {
       const account = await getMeliAccount();
       if (!account) return { isConnected: false };
 
-      // Opcional: Buscar info atualizada do usuário no Meli se necessário
-      // Por enquanto retornamos o que temos no banco
-      return { 
-        isConnected: true, 
+      return {
+        isConnected: true,
         sellerId: account.meli_user_id,
-        // Se tivermos salvo o nickname/nome, retornamos aqui. 
-        // Caso contrário, o front mostra apenas o ID ou "Conectado"
+        nickname: account.nickname || null,
       };
     },
 

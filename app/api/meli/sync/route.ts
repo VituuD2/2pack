@@ -52,10 +52,16 @@ export async function POST(request: Request) {
     }
     
     const userData = await userCheckResponse.json();
-    // Optional: Update user info in DB if needed (e.g. nickname)
-    // const sellerId = userData.id; // We can use this instead of stored one
-
     const sellerId = meliAccount.meli_user_id;
+
+    // Store user nickname for display purposes
+    const meliNickname = userData.nickname || null;
+    if (meliNickname && meliNickname !== meliAccount.nickname) {
+      await supabaseAdmin
+        .from('meli_accounts')
+        .update({ nickname: meliNickname })
+        .eq('organization_id', organizationId);
+    }
 
     // --- OUTBOUND SYNC (ORDERS) ---
     // 4. Fetch Recent Orders from Meli
@@ -153,14 +159,132 @@ export async function POST(request: Request) {
       }
     }
 
-    // --- INBOUND SYNC (FULFILLMENT STOCK + OPERATIONS) ---
+    // --- INBOUND SYNC (FULFILLMENT SHIPMENTS) ---
     console.log('Starting Inbound Sync (Fulfillment)...');
     let inboundCount = 0;
     let stockSyncCount = 0;
 
     try {
-      // A. Get Seller's Items (ALL statuses) to find Inventory IDs
-      // Limit to 100 items to get a better breadth
+      // A. FIRST: Try to fetch FBM Inbound Shipments directly
+      // This endpoint returns the actual inbound shipments like #56347689
+      const fbmInboundsUrl = `https://api.mercadolibre.com/users/${sellerId}/fbm_inbounds/search?status=ready_to_ship,shipped,delivered,in_warehouse,processing,finished&limit=50`;
+      console.log(`Fetching FBM inbounds from: ${fbmInboundsUrl}`);
+
+      const fbmRes = await fetch(fbmInboundsUrl, {
+        headers: { 'Authorization': `Bearer ${accessToken}` }
+      });
+
+      if (fbmRes.ok) {
+        const fbmData = await fbmRes.json();
+        const fbmShipments = fbmData.results || [];
+        console.log(`Found ${fbmShipments.length} FBM inbound shipments.`);
+
+        for (const fbm of fbmShipments) {
+          const meliInboundId = `FBM-${fbm.id}`;
+
+          // Map FBM status to our status
+          let status: 'pending' | 'completed' | 'draft' | 'picking' | 'weighing' = 'pending';
+          if (['finished', 'delivered', 'in_warehouse'].includes(fbm.status)) {
+            status = 'completed';
+          } else if (['processing'].includes(fbm.status)) {
+            status = 'picking';
+          }
+
+          const shipmentData = {
+            organization_id: organizationId,
+            meli_id: meliInboundId,
+            status,
+            type: 'inbound' as const,
+            created_at: fbm.date_created || new Date().toISOString(),
+          };
+
+          const { data: existingShipment } = await supabaseAdmin
+            .from('shipments')
+            .select('id')
+            .eq('meli_id', meliInboundId)
+            .maybeSingle();
+
+          let shipmentId = existingShipment?.id;
+
+          if (!shipmentId) {
+            const { data: newShipment, error: createErr } = await supabaseAdmin
+              .from('shipments')
+              .insert(shipmentData)
+              .select()
+              .single();
+
+            if (!createErr && newShipment) {
+              shipmentId = newShipment.id;
+              inboundCount++;
+              console.log(`Created FBM Inbound shipment: ${meliInboundId} (status: ${status})`);
+            }
+          } else {
+            // Update status
+            await supabaseAdmin
+              .from('shipments')
+              .update({ status })
+              .eq('id', shipmentId);
+          }
+
+          // Try to get shipment details for items
+          if (shipmentId && fbm.id) {
+            try {
+              const detailsUrl = `https://api.mercadolibre.com/fbm_inbounds/${fbm.id}`;
+              const detailsRes = await fetch(detailsUrl, {
+                headers: { 'Authorization': `Bearer ${accessToken}` }
+              });
+
+              if (detailsRes.ok) {
+                const details = await detailsRes.json();
+                const items = details.inventory_items || details.items || [];
+
+                for (const item of items) {
+                  const sku = item.seller_sku || item.sku;
+                  let productId: string | null = null;
+
+                  if (sku) {
+                    const { data: prod } = await supabaseAdmin
+                      .from('products')
+                      .select('id')
+                      .eq('organization_id', organizationId)
+                      .eq('sku', sku)
+                      .maybeSingle();
+                    productId = prod?.id || null;
+                  }
+
+                  if (!productId) {
+                    const { data: newProd } = await supabaseAdmin.from('products').insert({
+                      organization_id: organizationId,
+                      sku: sku || `FBM-${fbm.id}-${item.inventory_id || 'unknown'}`,
+                      title: item.title || item.name || 'FBM Item',
+                      barcode: 'UNKNOWN',
+                      unit_weight_kg: 0,
+                      image_url: item.picture || '',
+                    }).select().single();
+                    if (newProd) productId = newProd.id;
+                  }
+
+                  if (productId) {
+                    await supabaseAdmin.from('shipment_items').upsert({
+                      shipment_id: shipmentId,
+                      product_id: productId,
+                      expected_qty: item.quantity || item.declared_quantity || 0,
+                      scanned_qty: item.received_quantity || item.quantity || 0,
+                    }, { onConflict: 'shipment_id, product_id' });
+                  }
+                }
+              }
+            } catch (detailErr) {
+              console.error(`Error fetching FBM details for ${fbm.id}:`, detailErr);
+            }
+          }
+        }
+      } else {
+        const fbmError = await fbmRes.text();
+        console.log(`FBM inbounds fetch failed (${fbmRes.status}): ${fbmError}`);
+      }
+
+      // B. Get Seller's Items to find Inventory IDs for stock data
       const itemsSearchRes = await fetch(`https://api.mercadolibre.com/users/${sellerId}/items/search?limit=100`, {
         headers: { 'Authorization': `Bearer ${accessToken}` }
       });
@@ -168,10 +292,10 @@ export async function POST(request: Request) {
       if (itemsSearchRes.ok) {
         const itemsData = await itemsSearchRes.json();
         const itemIds = itemsData.results || [];
-        console.log(`Found ${itemIds.length} items to check.`);
+        console.log(`Found ${itemIds.length} items to check for inventory.`);
 
         if (itemIds.length > 0) {
-          // B. Get Item Details (batch in groups of 20 - API limit)
+          // Get Item Details (batch in groups of 20 - API limit)
           const allItemDetails: any[] = [];
           for (let i = 0; i < itemIds.length; i += 20) {
             const batch = itemIds.slice(i, i + 20);
@@ -182,6 +306,12 @@ export async function POST(request: Request) {
               const batchDetails = await itemDetailsRes.json();
               allItemDetails.push(...batchDetails);
             }
+          }
+
+          // Log sample item to debug
+          if (allItemDetails.length > 0) {
+            const sampleItem = allItemDetails[0]?.body;
+            console.log(`Sample item: id=${sampleItem?.id}, inventory_id=${sampleItem?.inventory_id}, shipping.logistic_type=${sampleItem?.shipping?.logistic_type}`);
           }
 
           // Map inventory_id to item details for later use

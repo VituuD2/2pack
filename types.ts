@@ -82,6 +82,7 @@ export interface MeliAccount {
     access_token: string;
     refresh_token: string;
     expires_at: string; // timestamp with time zone
+    nickname?: string; // Meli account display name
 }
 
 export interface AppUser {

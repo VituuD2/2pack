@@ -11,7 +11,7 @@ export default function InboundPage() {
   const router = useRouter();
   const [shipments, setShipments] = useState<Shipment[]>([]);
   const [activeTab, setActiveTab] = useState<'open' | 'history'>('open');
-  const [meliConnection, setMeliConnection] = useState<{ isConnected: boolean; sellerId?: string } | null>(null);
+  const [meliConnection, setMeliConnection] = useState<{ isConnected: boolean; sellerId?: string; nickname?: string | null } | null>(null);
 
   useEffect(() => {
     const loadData = async () => {
@@ -48,8 +48,11 @@ export default function InboundPage() {
               {meliConnection?.isConnected ? (
                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#FFE600]/10 border border-[#FFE600]/20 text-[#FFE600] text-xs font-medium">
                    <div className="w-2 h-2 rounded-full bg-[#FFE600] animate-pulse" />
-                   <span className="hidden sm:inline">Connected:</span> 
-                   <span className="font-bold">{meliConnection.sellerId || 'Meli Account'}</span>
+                   <span className="hidden sm:inline">Connected:</span>
+                   <span className="font-bold">{meliConnection.nickname || meliConnection.sellerId || 'Meli Account'}</span>
+                   {meliConnection.nickname && meliConnection.sellerId && (
+                     <span className="text-[#FFE600]/60 text-[10px]">({meliConnection.sellerId})</span>
+                   )}
                    <CheckCircle2 size={14} />
                 </div>
               ) : (
