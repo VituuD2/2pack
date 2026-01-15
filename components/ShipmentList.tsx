@@ -26,7 +26,7 @@ export const ShipmentList: React.FC<ShipmentListProps> = ({ shipments, onSelect 
            {shipments.map((shp) => {
              const total = shp.items.reduce((acc, i) => acc + i.expected_qty, 0);
              const scanned = shp.items.reduce((acc, i) => acc + i.scanned_qty, 0);
-             const progress = Math.round((scanned / total) * 100);
+             const progress = total > 0 ? Math.round((scanned / total) * 100) : 0;
 
              return (
                <GlassPanel 

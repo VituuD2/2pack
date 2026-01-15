@@ -30,8 +30,10 @@ export default function InboundPage() {
     router.push(`/picking/${id}`);
   };
 
-  const openShipments = shipments.filter(s => s.status !== 'completed');
-  const historyShipments = shipments.filter(s => s.status === 'completed');
+  // Filter only Inbound shipments for this page
+  const inboundShipments = shipments.filter(s => s.type === 'inbound');
+  const openShipments = inboundShipments.filter(s => s.status !== 'completed');
+  const historyShipments = inboundShipments.filter(s => s.status === 'completed');
 
   return (
     <>

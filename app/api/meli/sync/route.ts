@@ -64,6 +64,8 @@ export async function POST(request: Request) {
     }
 
     // --- OUTBOUND SYNC (ORDERS) ---
+    // Disabled per user request (focus on Inbound)
+    /*
     // 4. Fetch Recent Orders from Meli
     const ordersUrl = `https://api.mercadolibre.com/orders/search?seller=${sellerId}&order.status=paid&sort=date_desc&limit=20`;
     
@@ -158,6 +160,7 @@ export async function POST(request: Request) {
         }
       }
     }
+    */
 
     // --- INBOUND SYNC (FULFILLMENT SHIPMENTS) ---
     console.log('Starting Inbound Sync (Fulfillment)...');
@@ -470,7 +473,8 @@ export async function POST(request: Request) {
                     }
 
                     if (!productId) {
-                      const { data: newProd } = await supabaseAdmin.from('products').insert({
+                      console.log(`Creating product for SKU: ${sku || `MELI-${matchingItem.id}`}`);
+                      const { data: newProd, error: prodErr } = await supabaseAdmin.from('products').insert({
                         organization_id: organizationId,
                         sku: sku || `MELI-${matchingItem.id}`,
                         title: matchingItem.title,
@@ -478,16 +482,25 @@ export async function POST(request: Request) {
                         unit_weight_kg: 0,
                         image_url: matchingItem.thumbnail || '',
                       }).select().single();
+                      
+                      if (prodErr) {
+                         console.error('Error creating product:', prodErr);
+                      }
                       if (newProd) productId = newProd.id;
                     }
 
                     if (productId) {
-                      await supabaseAdmin.from('shipment_items').upsert({
+                      console.log(`Upserting shipment item: Shipment ${shipmentId}, Product ${productId}, Qty ${stockData.total}`);
+                      const { error: itemErr } = await supabaseAdmin.from('shipment_items').upsert({
                         shipment_id: shipmentId,
                         product_id: productId,
                         quantity_expected: stockData.total,
                         quantity_scanned: stockData.available_quantity,
                       }, { onConflict: 'shipment_id, product_id' });
+                      
+                      if (itemErr) console.error('Error upserting shipment item:', itemErr);
+                    } else {
+                       console.warn(`Could not link item to FULL shipment: ${invId} (Product creation failed or skipped)`);
                     }
                   }
                 }
@@ -582,7 +595,8 @@ export async function POST(request: Request) {
                       }
 
                       if (!productId) {
-                        const { data: newProd } = await supabaseAdmin.from('products').insert({
+                        console.log(`Creating product for SKU (INB): ${sku || `MELI-${matchingItem.id}`}`);
+                        const { data: newProd, error: prodErr } = await supabaseAdmin.from('products').insert({
                           organization_id: organizationId,
                           sku: sku || `MELI-${matchingItem.id}`,
                           title: matchingItem.title,
@@ -590,16 +604,25 @@ export async function POST(request: Request) {
                           unit_weight_kg: 0,
                           image_url: matchingItem.thumbnail || '',
                         }).select().single();
+                        
+                        if (prodErr) {
+                            console.error('Error creating product (INB):', prodErr);
+                        }
                         if (newProd) productId = newProd.id;
                       }
 
                       if (productId) {
-                        await supabaseAdmin.from('shipment_items').upsert({
+                        console.log(`Upserting shipment item (INB): Shipment ${shipmentId}, Product ${productId}`);
+                        const { error: itemErr } = await supabaseAdmin.from('shipment_items').upsert({
                           shipment_id: shipmentId,
                           product_id: productId,
                           quantity_expected: op.detail?.available_quantity || op.result?.total || 0,
                           quantity_scanned: op.result?.available_quantity || 0,
                         }, { onConflict: 'shipment_id, product_id' });
+                        
+                        if (itemErr) console.error('Error upserting shipment item (INB):', itemErr);
+                      } else {
+                         console.warn(`Could not link item to INB shipment: ${meliInboundId} (Product creation failed)`);
                       }
                     }
                   }
