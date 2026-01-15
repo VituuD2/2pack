@@ -610,9 +610,6 @@ export async function POST(request: Request) {
             }
           }
         }
-      } else {
-        console.error('Items search failed:', itemsSearchRes.status);
-      }
     } catch (inboundError) {
       console.error('Error syncing inbounds:', inboundError);
     }
