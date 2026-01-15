@@ -1,6 +1,7 @@
 import React from 'react';
 import { useUsers } from '../hooks/useUsers';
 import { useAuth } from '@/hooks/useAuth';
+import { useNotification } from '@/components/NotificationContext';
 import { supabase } from '@/services/supabaseClient';
 import { GlassPanel } from './GlassPanel';
 
@@ -42,6 +43,7 @@ const getLastSeenStatus = (lastActiveAt: string | null) => {
 const AdminPanel = () => {
   const { users, loading, error, refetch } = useUsers();
   const { session, userProfile } = useAuth();
+  const { showNotification } = useNotification();
 
   // Check if current user is admin
   const isAdmin = userProfile?.role === 'admin';
@@ -68,17 +70,17 @@ const AdminPanel = () => {
       
       if (error) {
         console.error('Error granting admin:', error);
-        alert(`Error granting admin role: ${error.message}`);
+        showNotification(`Error granting admin role: ${error.message}`, 'error');
       } else {
         console.log('Granted admin to user:', userId);
-        alert('Admin role granted successfully.');
+        showNotification('Admin role granted successfully.', 'success');
         
         // Refetch the user list to show updated roles
         await refetch();
       }
     } catch (err: any) {
       console.error('Unexpected error:', err);
-      alert(`Failed to grant admin role: ${err.message}`);
+      showNotification(`Failed to grant admin role: ${err.message}`, 'error');
     }
   };
 
@@ -92,17 +94,17 @@ const AdminPanel = () => {
       
       if (error) {
         console.error('Error revoking admin:', error);
-        alert(`Error revoking admin role: ${error.message}`);
+        showNotification(`Error revoking admin role: ${error.message}`, 'error');
       } else {
         console.log('Revoked admin from user:', userId);
-        alert('Admin role revoked successfully.');
+        showNotification('Admin role revoked successfully.', 'success');
         
         // Refetch the user list to show updated roles
         await refetch();
       }
     } catch (err: any) {
       console.error('Unexpected error:', err);
-      alert(`Failed to revoke admin role: ${err.message}`);
+      showNotification(`Failed to revoke admin role: ${err.message}`, 'error');
     }
   };
 
