@@ -153,9 +153,10 @@ export async function POST(request: Request) {
       }
     }
 
-    // --- INBOUND SYNC (FULFILLMENT OPERATIONS - DEEP HISTORY) ---
-    console.log('Starting Inbound Sync (Deep History)...');
+    // --- INBOUND SYNC (FULFILLMENT STOCK + OPERATIONS) ---
+    console.log('Starting Inbound Sync (Fulfillment)...');
     let inboundCount = 0;
+    let stockSyncCount = 0;
 
     try {
       // A. Get Seller's Items (ALL statuses) to find Inventory IDs
@@ -163,150 +164,268 @@ export async function POST(request: Request) {
       const itemsSearchRes = await fetch(`https://api.mercadolibre.com/users/${sellerId}/items/search?limit=100`, {
         headers: { 'Authorization': `Bearer ${accessToken}` }
       });
-      
+
       if (itemsSearchRes.ok) {
         const itemsData = await itemsSearchRes.json();
         const itemIds = itemsData.results || [];
         console.log(`Found ${itemIds.length} items to check.`);
-        
+
         if (itemIds.length > 0) {
-          // B. Get Item Details
-          const itemDetailsRes = await fetch(`https://api.mercadolibre.com/items?ids=${itemIds.join(',')}`, {
-             headers: { 'Authorization': `Bearer ${accessToken}` }
-          });
+          // B. Get Item Details (batch in groups of 20 - API limit)
+          const allItemDetails: any[] = [];
+          for (let i = 0; i < itemIds.length; i += 20) {
+            const batch = itemIds.slice(i, i + 20);
+            const itemDetailsRes = await fetch(`https://api.mercadolibre.com/items?ids=${batch.join(',')}`, {
+               headers: { 'Authorization': `Bearer ${accessToken}` }
+            });
+            if (itemDetailsRes.ok) {
+              const batchDetails = await itemDetailsRes.json();
+              allItemDetails.push(...batchDetails);
+            }
+          }
 
-          if (itemDetailsRes.ok) {
-            const itemDetails = await itemDetailsRes.json();
-            const inventoryIds = new Set<string>();
+          // Map inventory_id to item details for later use
+          const inventoryToItem = new Map<string, any>();
+          const inventoryIds = new Set<string>();
 
-            // Collect unique inventory_ids
-            for (const itemWrapper of itemDetails) {
-              const item = itemWrapper.body;
-              if (item.inventory_id) {
-                inventoryIds.add(item.inventory_id);
-              }
+          // Collect unique inventory_ids (including from variations)
+          for (const itemWrapper of allItemDetails) {
+            const item = itemWrapper.body;
+            if (!item) continue;
+
+            // Check main item inventory_id
+            if (item.inventory_id) {
+              inventoryIds.add(item.inventory_id);
+              inventoryToItem.set(item.inventory_id, item);
             }
 
-            console.log(`Found ${inventoryIds.size} unique inventory IDs.`);
+            // Check variations for inventory_ids (fulfillment items often have variations)
+            if (item.variations && Array.isArray(item.variations)) {
+              for (const variation of item.variations) {
+                if (variation.inventory_id) {
+                  inventoryIds.add(variation.inventory_id);
+                  inventoryToItem.set(variation.inventory_id, {
+                    ...item,
+                    variation_id: variation.id,
+                    seller_sku: variation.seller_custom_field || item.seller_sku
+                  });
+                }
+              }
+            }
+          }
 
-            // C. Check Operations for each Inventory ID
-            // We loop 12 times x 60 days = 720 days (~2 years) history
-            const historyLoops = 12;
+          console.log(`Found ${inventoryIds.size} unique inventory IDs (including variations).`);
 
-            for (const invId of Array.from(inventoryIds)) {
-               // console.log(`Checking history for Inventory ID: ${invId}`);
-               
-               for (let i = 0; i < historyLoops; i++) {
-                 const endDate = new Date();
-                 endDate.setDate(endDate.getDate() - (i * 60)); 
-                 
-                 const startDate = new Date(endDate);
-                 startDate.setDate(startDate.getDate() - 60); 
-                 
-                 const dateTo = endDate.toISOString().split('T')[0];
-                 const dateFrom = startDate.toISOString().split('T')[0];
+          // C. NEW: Fetch current FULL stock status for each inventory
+          // This is the critical endpoint that retrieves actual fulfillment data
+          for (const invId of Array.from(inventoryIds)) {
+            try {
+              const stockUrl = `https://api.mercadolibre.com/inventories/${invId}/stock/fulfillment`;
+              const stockRes = await fetch(stockUrl, {
+                headers: { 'Authorization': `Bearer ${accessToken}` }
+              });
 
-                 // console.log(`  > Period ${i+1}: ${dateFrom} to ${dateTo}`);
+              if (stockRes.ok) {
+                const stockData = await stockRes.json();
+                console.log(`Stock for ${invId}: total=${stockData.total}, available=${stockData.available_quantity}`);
 
-                 const opsUrl = `https://api.mercadolibre.com/stock/fulfillment/operations/search?seller_id=${sellerId}&inventory_id=${invId}&date_from=${dateFrom}&date_to=${dateTo}&type=INBOUND_RECEPTION`;
-                 
-                 const opsRes = await fetch(opsUrl, {
-                   headers: { 'Authorization': `Bearer ${accessToken}` }
-                 });
+                // Only create inbound record if there's actual stock in fulfillment
+                if (stockData.total > 0) {
+                  const matchingItem = inventoryToItem.get(invId);
 
-                 if (opsRes.ok) {
-                   const opsData = await opsRes.json();
-                   const operations = opsData.results || [];
+                  // Create/update a "FULL Stock" shipment for this inventory
+                  const meliInboundId = `FULL-${invId}`;
 
-                   if (operations.length > 0) {
-                      console.log(`    Found ${operations.length} ops for ${invId} in Period ${i+1}`);
-                   }
+                  const shipmentData = {
+                    organization_id: organizationId,
+                    meli_id: meliInboundId,
+                    status: 'completed' as const, // FULL stock is already received
+                    type: 'inbound' as const,
+                    created_at: new Date().toISOString(),
+                  };
 
-                   for (const op of operations) {
-                     // Map INBOUND_RECEPTION to Shipment
-                     // External reference usually contains 'inbound_id' or 'shipment_id' (rarely)
-                     // Look for type: 'inbound_id' OR type: 'shipment_id' if available (though usually shipment_id is for sales)
-                     const inboundRef = op.external_references?.find((ref: any) => ref.type === 'inbound_id');
-                     
-                     // If no inbound_id, fallback to OP id, but ideally we want the Inbound Shipment ID (e.g. 56347689)
-                     // Sometimes the 'inbound_id' value IS that number.
-                     const meliInboundId = inboundRef ? inboundRef.value : `OP-${op.id}`; 
+                  // Upsert the shipment
+                  const { data: existingShipment } = await supabaseAdmin
+                    .from('shipments')
+                    .select('id')
+                    .eq('meli_id', meliInboundId)
+                    .maybeSingle();
 
-                     const shipmentData = {
-                       organization_id: organizationId,
-                       meli_id: meliInboundId,
-                       status: 'pending', // Default
-                       type: 'inbound',
-                       created_at: op.date_created,
-                     };
+                  let shipmentId = existingShipment?.id;
 
-                     // Upsert Inbound Shipment
-                     const { data: existingInbound } = await supabaseAdmin
-                       .from('shipments')
-                       .select('id')
-                       .eq('meli_id', shipmentData.meli_id)
-                       .maybeSingle();
+                  if (!shipmentId) {
+                    const { data: newShipment, error: createErr } = await supabaseAdmin
+                      .from('shipments')
+                      .insert(shipmentData)
+                      .select()
+                      .single();
 
-                     let shipmentId = existingInbound?.id;
+                    if (!createErr && newShipment) {
+                      shipmentId = newShipment.id;
+                      stockSyncCount++;
+                      console.log(`Created FULL Stock shipment: ${meliInboundId}`);
+                    }
+                  } else {
+                    // Update existing shipment status
+                    await supabaseAdmin
+                      .from('shipments')
+                      .update({ status: 'completed' })
+                      .eq('id', shipmentId);
+                  }
 
-                     if (!shipmentId) {
-                        const { data: newInbound, error: createErr } = await supabaseAdmin
-                          .from('shipments')
-                          .insert(shipmentData)
-                          .select()
-                          .single();
-                        
-                        if (!createErr) {
-                          shipmentId = newInbound.id;
-                          inboundCount++;
-                          console.log(`      Created Inbound: ${shipmentData.meli_id}`);
-                        }
-                     }
+                  // Link Product to shipment
+                  if (shipmentId && matchingItem) {
+                    const sku = matchingItem.seller_sku || matchingItem.seller_custom_field;
+                    let productId: string | null = null;
 
-                     if (shipmentId) {
-                       // Link Product
-                       const matchingItemWrapper = itemDetails.find((w: any) => w.body.inventory_id === invId);
-                       const matchingItem = matchingItemWrapper?.body;
+                    if (sku) {
+                      const { data: prod } = await supabaseAdmin
+                        .from('products')
+                        .select('id')
+                        .eq('organization_id', organizationId)
+                        .eq('sku', sku)
+                        .maybeSingle();
+                      productId = prod?.id || null;
+                    }
 
-                       if (matchingItem) {
-                          const sku = matchingItem.seller_sku;
-                          let productId: string | null = null;
+                    if (!productId) {
+                      const { data: newProd } = await supabaseAdmin.from('products').insert({
+                        organization_id: organizationId,
+                        sku: sku || `MELI-${matchingItem.id}`,
+                        title: matchingItem.title,
+                        barcode: 'UNKNOWN',
+                        unit_weight_kg: 0,
+                        image_url: matchingItem.thumbnail || '',
+                      }).select().single();
+                      if (newProd) productId = newProd.id;
+                    }
 
-                          if (sku) {
-                            const { data: prod } = await supabaseAdmin
-                              .from('products')
-                              .select('id')
-                              .eq('organization_id', organizationId)
-                              .eq('sku', sku)
-                              .maybeSingle();
-                            productId = prod?.id || null;
-                          }
-                          
-                          if (!productId) {
-                             const { data: newProd } = await supabaseAdmin.from('products').insert({
-                                 organization_id: organizationId,
-                                 sku: sku || `MELI-${matchingItem.id}`,
-                                 title: matchingItem.title,
-                                 barcode: 'UNKNOWN',
-                                 unit_weight_kg: 0,
-                                 image_url: matchingItem.thumbnail || '',
-                             }).select().single();
-                             if (newProd) productId = newProd.id;
-                          }
+                    if (productId) {
+                      await supabaseAdmin.from('shipment_items').upsert({
+                        shipment_id: shipmentId,
+                        product_id: productId,
+                        expected_qty: stockData.total,
+                        scanned_qty: stockData.available_quantity,
+                      }, { onConflict: 'shipment_id, product_id' });
+                    }
+                  }
+                }
+              } else {
+                // Log but don't fail - item may not be in fulfillment
+                const errText = await stockRes.text();
+                console.log(`Stock fetch for ${invId} failed (may not be in FULL): ${stockRes.status}`);
+              }
+            } catch (stockErr) {
+              console.error(`Error fetching stock for ${invId}:`, stockErr);
+            }
+          }
 
-                          if (productId) {
-                             await supabaseAdmin.from('shipment_items').upsert({
-                                 shipment_id: shipmentId,
-                                 product_id: productId,
-                                 expected_qty: op.result?.total || 0,
-                                 scanned_qty: op.result?.available_quantity || 0,
-                             }, { onConflict: 'shipment_id, product_id' });
-                          }
-                       }
-                     }
-                   }
-                 }
-               } // End Date Loop
+          // D. Also fetch operations history for the last 60 days (recent activity)
+          // This captures actual inbound receptions that happened recently
+          const endDate = new Date();
+          const startDate = new Date();
+          startDate.setDate(startDate.getDate() - 60);
+
+          const dateTo = endDate.toISOString().split('T')[0];
+          const dateFrom = startDate.toISOString().split('T')[0];
+
+          for (const invId of Array.from(inventoryIds)) {
+            try {
+              // Query ALL operation types (not just INBOUND_RECEPTION)
+              const opsUrl = `https://api.mercadolibre.com/stock/fulfillment/operations/search?seller_id=${sellerId}&inventory_id=${invId}&date_from=${dateFrom}&date_to=${dateTo}`;
+
+              const opsRes = await fetch(opsUrl, {
+                headers: { 'Authorization': `Bearer ${accessToken}` }
+              });
+
+              if (opsRes.ok) {
+                const opsData = await opsRes.json();
+                const operations = opsData.results || [];
+
+                // Filter for INBOUND_RECEPTION operations specifically
+                const inboundOps = operations.filter((op: any) => op.type === 'INBOUND_RECEPTION');
+
+                if (inboundOps.length > 0) {
+                  console.log(`Found ${inboundOps.length} inbound operations for ${invId}`);
+                }
+
+                for (const op of inboundOps) {
+                  const inboundRef = op.external_references?.find((ref: any) => ref.type === 'inbound_id');
+                  const meliInboundId = inboundRef ? `INB-${inboundRef.value}` : `OP-${op.id}`;
+
+                  const shipmentData = {
+                    organization_id: organizationId,
+                    meli_id: meliInboundId,
+                    status: 'completed' as const,
+                    type: 'inbound' as const,
+                    created_at: op.date_created,
+                  };
+
+                  const { data: existingInbound } = await supabaseAdmin
+                    .from('shipments')
+                    .select('id')
+                    .eq('meli_id', meliInboundId)
+                    .maybeSingle();
+
+                  let shipmentId = existingInbound?.id;
+
+                  if (!shipmentId) {
+                    const { data: newInbound, error: createErr } = await supabaseAdmin
+                      .from('shipments')
+                      .insert(shipmentData)
+                      .select()
+                      .single();
+
+                    if (!createErr && newInbound) {
+                      shipmentId = newInbound.id;
+                      inboundCount++;
+                      console.log(`Created Inbound from operation: ${meliInboundId}`);
+                    }
+                  }
+
+                  if (shipmentId) {
+                    const matchingItem = inventoryToItem.get(invId);
+
+                    if (matchingItem) {
+                      const sku = matchingItem.seller_sku || matchingItem.seller_custom_field;
+                      let productId: string | null = null;
+
+                      if (sku) {
+                        const { data: prod } = await supabaseAdmin
+                          .from('products')
+                          .select('id')
+                          .eq('organization_id', organizationId)
+                          .eq('sku', sku)
+                          .maybeSingle();
+                        productId = prod?.id || null;
+                      }
+
+                      if (!productId) {
+                        const { data: newProd } = await supabaseAdmin.from('products').insert({
+                          organization_id: organizationId,
+                          sku: sku || `MELI-${matchingItem.id}`,
+                          title: matchingItem.title,
+                          barcode: 'UNKNOWN',
+                          unit_weight_kg: 0,
+                          image_url: matchingItem.thumbnail || '',
+                        }).select().single();
+                        if (newProd) productId = newProd.id;
+                      }
+
+                      if (productId) {
+                        await supabaseAdmin.from('shipment_items').upsert({
+                          shipment_id: shipmentId,
+                          product_id: productId,
+                          expected_qty: op.detail?.available_quantity || op.result?.total || 0,
+                          scanned_qty: op.result?.available_quantity || 0,
+                        }, { onConflict: 'shipment_id, product_id' });
+                      }
+                    }
+                  }
+                }
+              }
+            } catch (opsErr) {
+              console.error(`Error fetching operations for ${invId}:`, opsErr);
             }
           }
         }
@@ -317,9 +436,9 @@ export async function POST(request: Request) {
       console.error('Error syncing inbounds:', inboundError);
     }
 
-    return NextResponse.json({ 
-      success: true, 
-      message: `Synced outbound orders and ${inboundCount} inbound shipments.`,
+    return NextResponse.json({
+      success: true,
+      message: `Synced outbound orders, ${stockSyncCount} FULL stock items, and ${inboundCount} inbound operations.`,
     });
 
   } catch (error) {
