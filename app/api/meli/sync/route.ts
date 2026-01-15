@@ -305,16 +305,44 @@ export async function POST(request: Request) {
       }
 
       // B. Get Seller's Items to find Inventory IDs for stock data
-      const itemsSearchRes = await fetch(`https://api.mercadolibre.com/users/${sellerId}/items/search?limit=100`, {
-        headers: { 'Authorization': `Bearer ${accessToken}` }
-      });
+      console.log('Fetching all fulfillment items...');
+      let itemIds: string[] = [];
+      let offset = 0;
+      const limit = 50;
+      let hasMore = true;
 
-      if (itemsSearchRes.ok) {
-        const itemsData = await itemsSearchRes.json();
-        const itemIds = itemsData.results || [];
-        console.log(`Found ${itemIds.length} items to check for inventory.`);
+      while (hasMore) {
+        const itemsSearchRes = await fetch(
+          `https://api.mercadolibre.com/users/${sellerId}/items/search?logistic_type=fulfillment&limit=${limit}&offset=${offset}`, 
+          {
+            headers: { 'Authorization': `Bearer ${accessToken}` }
+          }
+        );
 
-        if (itemIds.length > 0) {
+        if (itemsSearchRes.ok) {
+          const itemsData = await itemsSearchRes.json();
+          const results = itemsData.results || [];
+          
+          if (results.length > 0) {
+            itemIds = [...itemIds, ...results];
+            offset += limit;
+            // Safety break for very large inventories to avoid timeout
+            if (offset > 1000) { 
+               console.warn('Reached item fetch limit (1000 items). Stopping pagination to prevent timeout.');
+               hasMore = false; 
+            }
+          } else {
+            hasMore = false;
+          }
+        } else {
+          console.error(`Error fetching items at offset ${offset}:`, itemsSearchRes.status);
+          hasMore = false;
+        }
+      }
+
+      console.log(`Found ${itemIds.length} fulfillment items to check for inventory.`);
+
+      if (itemIds.length > 0) {
           // Get Item Details (batch in groups of 20 - API limit)
           const allItemDetails: any[] = [];
           for (let i = 0; i < itemIds.length; i += 20) {
@@ -370,7 +398,7 @@ export async function POST(request: Request) {
           // This is the critical endpoint that retrieves actual fulfillment data
           for (const invId of Array.from(inventoryIds)) {
             try {
-              const stockUrl = `https://api.mercadolibre.com/inventories/${invId}/stock/fulfillment`;
+              const stockUrl = `https://api.mercadolibre.com/inventories/${invId}/stock/fulfillment?include_attributes=conditions`;
               const stockRes = await fetch(stockUrl, {
                 headers: { 'Authorization': `Bearer ${accessToken}` }
               });
@@ -378,6 +406,9 @@ export async function POST(request: Request) {
               if (stockRes.ok) {
                 const stockData = await stockRes.json();
                 console.log(`Stock for ${invId}: total=${stockData.total}, available=${stockData.available_quantity}`);
+                if (stockData.not_available_detail && stockData.not_available_detail.length > 0) {
+                    console.log(`Stock Condition Details for ${invId}:`, JSON.stringify(stockData.not_available_detail));
+                }
 
                 // Only create inbound record if there's actual stock in fulfillment
                 if (stockData.total > 0) {
