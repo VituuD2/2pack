@@ -151,8 +151,8 @@ export async function POST(request: Request) {
                await supabaseAdmin.from('shipment_items').upsert({
                    shipment_id: shipmentId,
                    product_id: productId,
-                   expected_qty: item.quantity,
-                   scanned_qty: 0, 
+                   quantity_expected: item.quantity,
+                   quantity_scanned: 0, 
                }, { onConflict: 'shipment_id, product_id' });
             }
         }
@@ -289,8 +289,8 @@ export async function POST(request: Request) {
                     await supabaseAdmin.from('shipment_items').upsert({
                       shipment_id: shipmentId,
                       product_id: productId,
-                      expected_qty: item.quantity || item.declared_quantity || 0,
-                      scanned_qty: item.received_quantity || item.quantity || 0,
+                      quantity_expected: item.quantity || item.declared_quantity || 0,
+                      quantity_scanned: item.received_quantity || item.quantity || 0,
                     }, { onConflict: 'shipment_id, product_id' });
                   }
                 }
@@ -454,8 +454,8 @@ export async function POST(request: Request) {
                       await supabaseAdmin.from('shipment_items').upsert({
                         shipment_id: shipmentId,
                         product_id: productId,
-                        expected_qty: stockData.total,
-                        scanned_qty: stockData.available_quantity,
+                        quantity_expected: stockData.total,
+                        quantity_scanned: stockData.available_quantity,
                       }, { onConflict: 'shipment_id, product_id' });
                     }
                   }
@@ -566,8 +566,8 @@ export async function POST(request: Request) {
                         await supabaseAdmin.from('shipment_items').upsert({
                           shipment_id: shipmentId,
                           product_id: productId,
-                          expected_qty: op.detail?.available_quantity || op.result?.total || 0,
-                          scanned_qty: op.result?.available_quantity || 0,
+                          quantity_expected: op.detail?.available_quantity || op.result?.total || 0,
+                          quantity_scanned: op.result?.available_quantity || 0,
                         }, { onConflict: 'shipment_id, product_id' });
                       }
                     }
